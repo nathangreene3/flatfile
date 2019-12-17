@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 	"sort"
+	"strings"
 
 	"git.biscorp.local/serverdev/errors"
 )
@@ -20,8 +21,33 @@ func New(lf LineFmt) FlatFile {
 	return FlatFile{lineFmt: lf.Copy(), lines: make(Lines, 0)}
 }
 
-// DetermineFormatLengthsFromIndices TODO
-func (ff *FlatFile) DetermineFormatLengthsFromIndices() {}
+// Append several lines.
+func (ff *FlatFile) Append(lns ...Line) {
+	for _, ln := range lns {
+		ff.append(ln)
+	}
+}
+
+// append a line.
+func (ff *FlatFile) append(ln Line) {
+	ln = ln.Copy()
+	for k, v := range ln {
+		ln[k] = strings.Trim(v[:min(len(v), ff.lineFmt[k].length)], " ")
+	}
+
+	ff.lines = append(ff.lines, ln)
+}
+
+// Fields returns a sorted slice of fields from a flat file.
+func (ff *FlatFile) Fields(i int) Fields {
+	fs := make(Fields, 0, len(ff.lines[i]))
+	for k, v := range ff.lines[i] {
+		fs = append(fs, NewField(v, ff.lineFmt[k].index, ff.lineFmt[k].length))
+	}
+
+	sort.Slice(fs, func(i, j int) bool { return fs[i].Compare(fs[j]) < 0 })
+	return fs
+}
 
 // Format returns a copy of the flat file line format.
 func (ff *FlatFile) Format() LineFmt {
@@ -43,11 +69,6 @@ func (ff *FlatFile) Insert(i int, fieldName, field string) error {
 // Len returns the number of lines in the flat file.
 func (ff *FlatFile) Len() int {
 	return len(ff.lines)
-}
-
-// Read a flat file into a slice of bytes. TODO
-func (ff *FlatFile) Read(b []byte) (int64, error) {
-	return 0, nil
 }
 
 // ReadFrom a reader into a flat file.
@@ -73,7 +94,7 @@ func (ff *FlatFile) ReadFrom(r io.Reader) (int64, error) {
 		ln := make(Line)
 		if 0 < len(line) {
 			for fieldName, lf := range ff.lineFmt {
-				ln[fieldName] = string(line[lf.index : lf.index+lf.length])
+				ln[fieldName] = strings.Trim(string(line[lf.index:lf.index+lf.length]), " ")
 			}
 		}
 
@@ -84,7 +105,7 @@ func (ff *FlatFile) ReadFrom(r io.Reader) (int64, error) {
 }
 
 // Set a field name. Caution: this overwrites any existing field name. To
-// prevent overwriting, use Insert.
+// prevent overwriting, use Insert. To insert a new line, use Append.
 func (ff *FlatFile) Set(i int, fieldName, field string) error {
 	if ff.lineFmt[fieldName].length < len(field) {
 		return errors.E(errors.Invalid, "format length restriction")
@@ -94,42 +115,29 @@ func (ff *FlatFile) Set(i int, fieldName, field string) error {
 	return nil
 }
 
-// Slice ...TODO
-func (ff *FlatFile) Slice(i int) []string {
-	type temp struct {
-		index int
-		field string
+// String returns flat file lines as strings, concatenated into a single string
+// by a carriage return.
+func (ff *FlatFile) String() string {
+	ss := make([]string, 0, len(ff.lines))
+	for i := range ff.lines {
+		ss = append(ss, ff.StringAt(i))
 	}
 
-	var (
-		compareTemps = func(t, u temp) int {
-			switch {
-			case t.index < u.index:
-				return -1
-			case u.index < t.index:
-				return 1
-			case t.field < u.field:
-				return -1
-			case u.field < t.field:
-				return 1
-			default:
-				return 0
-			}
-		}
+	return strings.Join(ss, "\n")
+}
 
-		n     = len(ff.lines[i])
-		temps = make([]temp, 0, n)
-		s     = make([]string, 0, n)
-	)
-
-	for k, v := range ff.lines[i] {
-		temps = append(temps, temp{index: ff.lineFmt[k].index, field: v})
+// StringAt returns the ith line as a string.
+func (ff *FlatFile) StringAt(i int) string {
+	s := make([]string, 0, len(ff.lines[i]))
+	for _, f := range ff.Fields(i) {
+		s = append(s, f.contents+strings.Repeat(" ", f.length-len(f.contents)))
 	}
 
-	sort.Slice(temps, func(i, j int) bool { return compareTemps(temps[i], temps[j]) < 0 })
-	for _, t := range temps {
-		s = append(s, t.field)
-	}
+	return strings.Join(s, "")
+}
 
-	return s
+// WriteTo a given writer.
+func (ff *FlatFile) WriteTo(w io.Writer) (int64, error) {
+	n, err := w.Write([]byte(ff.String()))
+	return int64(n), err
 }

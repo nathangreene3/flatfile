@@ -3,7 +3,7 @@ package flatfile
 import "git.biscorp.local/serverdev/errors"
 
 // LineFmt maps field names to their formats.
-type LineFmt map[string]FieldFmt
+type LineFmt map[string]Format
 
 // Contains indicates if a field name is found in a line format.
 func (lf *LineFmt) Contains(fieldName string) bool {
@@ -13,7 +13,7 @@ func (lf *LineFmt) Contains(fieldName string) bool {
 
 // Copy a line format.
 func (lf *LineFmt) Copy() LineFmt {
-	cpy := make(map[string]FieldFmt)
+	cpy := make(map[string]Format)
 	for k, v := range *lf {
 		cpy[k] = v
 	}
@@ -32,18 +32,18 @@ func (lf *LineFmt) Delete(fieldName string) error {
 }
 
 // Get a field format associated by a field name.
-func (lf *LineFmt) Get(fieldName string) (FieldFmt, error) {
+func (lf *LineFmt) Get(fieldName string) (Format, error) {
 	if fieldFmt, ok := (*lf)[fieldName]; ok {
 		return fieldFmt, nil
 	}
 
-	return FieldFmt{}, errors.E(errors.NotExist, "field name not found")
+	return Format{}, errors.E(errors.NotExist, "field name not found")
 }
 
 // Insert a field format into a line format. Returns an error if the field name
 // already exists. To overwrite an existing field format associated with the
 // field name, use Set.
-func (lf *LineFmt) Insert(fieldName string, fieldFmt FieldFmt) error {
+func (lf *LineFmt) Insert(fieldName string, fieldFmt Format) error {
 	if _, ok := (*lf)[fieldName]; ok {
 		return errors.E(errors.Exist, "field name already exists")
 	}
@@ -60,6 +60,6 @@ func (lf *LineFmt) Len() int {
 // Set a field format to a given field name. Caution: this overwrites any
 // existing field associated with the field name. To prevent overwriting, use
 // Insert.
-func (lf *LineFmt) Set(fieldName string, fieldFmt FieldFmt) {
+func (lf *LineFmt) Set(fieldName string, fieldFmt Format) {
 	(*lf)[fieldName] = fieldFmt
 }

@@ -1,0 +1,16 @@
+cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
+git.biscorp.local/serverdev/common v1.0.1/go.mod h1:YHUfU0paJ5dkYSKELfNNFmx16W1LMP8rtZIVxCEEOVU=
+git.biscorp.local/serverdev/errors v1.0.2/go.mod h1:0a/Dr3Oz7EeEAQ1b3ltiKx1vAiY7MDjCpZkjZqGTN2c=
+git.biscorp.local/serverdev/errors v1.0.23 h1:T43VphWCtNg2j7t+nvD4Gj39XAd7UN7Bi62ld33rouk=
+git.biscorp.local/serverdev/errors v1.0.23/go.mod h1:XVMax+UHy+ztPCg66pZJgtQXRb1bwV8P4LKgkFtKWSM=
+git.biscorp.local/serverdev/str v0.0.3 h1:oHbHb+SdjBoYS6zoUGBQU7OGdPuD3E2Cv6nu/Z3rzIE=
+git.biscorp.local/serverdev/str v0.0.3/go.mod h1:lTjTJ2XqFPfOQDgillSE3KWS9pQX4XXZDdAzk6xx2Ng=
+github.com/Sirupsen/logrus v1.0.6/go.mod h1:rmk17hk6i8ZSAJkSDa7nOxamrG+SP4P0mm+DAvExv4U=
+github.com/denisenkom/go-mssqldb v0.0.0-20180707235734-242fa5aa1b45/go.mod h1:xN/JuLBIz4bjkxNmByTiV1IbhfnYb6oo99phBn4Eqhc=
+github.com/go-sql-driver/mysql v1.4.0/go.mod h1:zAC/RDZ24gD3HViQzih4MyKcchzm+sOG5ZlKdlhCg5w=
+github.com/iancoleman/strcase v0.0.0-20180726023541-3605ed457bf7 h1:ux/56T2xqZO/3cP1I2F86qpeoYPCOzk+KF/UH/Ar+lk=
+github.com/iancoleman/strcase v0.0.0-20180726023541-3605ed457bf7/go.mod h1:SK73tn/9oHe+/Y0h39VT4UCxmurVJkR5NA7kMEAOgSE=
+github.com/jinzhu/now v0.0.0-20180511015916-ed742868f2ae/go.mod h1:oHTiXerJ20+SfYcrdlBO7rzZRJWGwSTQ0iUY2jI6Gfc=
+github.com/jmoiron/sqlx v0.0.0-20180614180643-0dae4fefe7c0/go.mod h1:IiEW3SEiiErVyFdH8NTuWjSifiEQKUoyK3LNqr2kCHU=
+golang.org/x/crypto v0.0.0-20180808211826-de0752318171/go.mod h1:6SG95UA2DQfeDnfUPMdvaQW0Q7yPrPDi9nlGo2tz2b4=
+golang.org/x/sys v0.0.0-20180816055513-1c9583448a9c/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=

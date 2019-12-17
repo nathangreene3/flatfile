@@ -2,24 +2,39 @@ package flatfile
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 )
 
 func TestFlatFile1(t *testing.T) {
-	var (
-		contents = "field1field 2field  3\nfield1field 2field  3\nfield1field 2field  3\n"
-		buf      = bytes.NewBuffer(make([]byte, 0, len(contents)))
-		format   = LineFmt{
-			"1": NewFieldFmt(0, 6),
-			"2": NewFieldFmt(6, 7),
-			"3": NewFieldFmt(13, 8),
-		}
+	// Simulate reading from a flat file where each line consists of two fields:
+	// last and first names, each being eight characters long.
 
-		ff = New(format)
+	var (
+		exp = strings.Join(
+			[]string{
+				"SkywalkeLuke    ",
+				"Vader   Darth   ",
+				"Kenobi  Obi-Wan ",
+				"Leia    Princess",
+				"Solo    Han     ",
+			},
+			"\n",
+		)
+
+		ff = New(LineFmt{"first": NewFormat(8, 8), "last": NewFormat(0, 8)})
 	)
 
-	buf.WriteString(contents)
-	ff.ReadFrom(buf)
+	if _, err := ff.ReadFrom(bytes.NewBufferString(exp)); err != nil {
+		t.Fatalf("\nunexpected error: '%s'\n", err.Error())
+	}
 
-	t.Fatalf("\nreceived %v\n", ff.lines)
+	buf := bytes.NewBuffer(make([]byte, 0, len(exp)))
+	if _, err := ff.WriteTo(buf); err != nil {
+		t.Fatalf("\nunexpected error: '%s'\n", err.Error())
+	}
+
+	if rec := buf.String(); exp != rec {
+		t.Fatalf("\nexpected '%s'\nreceived '%s'\n", exp, rec)
+	}
 }
