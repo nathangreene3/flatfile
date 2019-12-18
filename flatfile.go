@@ -10,7 +10,7 @@ import (
 	"git.biscorp.local/serverdev/errors"
 )
 
-// FlatFile ...
+// FlatFile consists of a slice of lines and a format applied to each line.
 type FlatFile struct {
 	lineFmt LineFmt
 	lines   Lines
@@ -74,7 +74,8 @@ func (ff *FlatFile) Get(i int, fieldName string) (string, error) {
 	return ff.lines[i].Get(fieldName)
 }
 
-// Grow increases the flat file's capacity.
+// Grow increases the flat file's capacity. If the given capacity is not greater
+// than the current length, then nothing happens.
 func (ff *FlatFile) Grow(cap int) {
 	if len(ff.lines) < cap {
 		cpy := make(Lines, len(ff.lines), cap)

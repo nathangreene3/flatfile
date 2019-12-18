@@ -1,6 +1,6 @@
 package flatfile
 
-// Field extends FieldFmt by adding contents.
+// Field extends Format by adding contents.
 type Field struct {
 	Format
 	contents string

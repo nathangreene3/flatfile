@@ -18,7 +18,7 @@ func (ln *Line) Contains(fieldName string) bool {
 
 // Copy a line.
 func (ln *Line) Copy() Line {
-	cpy := make(map[string]string)
+	cpy := make(Line)
 	for k, v := range *ln {
 		cpy[k] = v
 	}

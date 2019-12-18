@@ -12,15 +12,15 @@ func NewFormat(index, length int) Format {
 }
 
 // Compare two field formats.
-func (f *Format) Compare(fieldFmt Format) int {
+func (f *Format) Compare(format Format) int {
 	switch {
-	case f.index < fieldFmt.index:
+	case f.index < format.index:
 		return -1
-	case fieldFmt.index < f.index:
+	case format.index < f.index:
 		return 1
-	case f.length < fieldFmt.length:
+	case f.length < format.length:
 		return -1
-	case fieldFmt.length < f.length:
+	case format.length < f.length:
 		return 1
 	default:
 		return 0
