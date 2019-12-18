@@ -42,7 +42,7 @@ func (ff *FlatFile) append(ln Line) {
 	ff.lines = append(ff.lines, ln)
 }
 
-// appendBytes ...
+// appendBytes formats a byte slice into a line and appends it.
 func (ff *FlatFile) appendBytes(b []byte) {
 	ln := make(Line)
 	for k, v := range ff.lineFmt {
@@ -109,6 +109,17 @@ func (ff *FlatFile) ReadFrom(r io.Reader) (int64, error) {
 	}
 
 	return int64(len(contents)), nil
+}
+
+// Remove and return a line.
+func (ff *FlatFile) Remove(i int) Line {
+	var ln Line
+	if i < len(ff.lines) {
+		ln = ff.lines[i]
+	}
+
+	ff.lines = append(ff.lines[:i], ff.lines[i+1:]...)
+	return ln
 }
 
 // Set a field. Caution: this overwrites any existing field.

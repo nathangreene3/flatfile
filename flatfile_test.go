@@ -18,6 +18,7 @@ func TestFlatFile(t *testing.T) {
 				"Vader   Darth   ",
 				"Kenobi  Obi-Wan ",
 				"Solo    Han     ",
+				"        Yoda    ",
 			},
 			"\n",
 		)
@@ -42,18 +43,31 @@ func TestFlatFile(t *testing.T) {
 		t.Fatalf("\nunexpected error: '%s'\n", err.Error())
 	}
 
-	// 3. Append a new line
+	// 3. Remove a line
+	lnExp := Line{"first": "Yoda", "last": ""}
+	lnRec := ff.Remove(ff.Len() - 1)
+	if len(lnExp) != len(lnRec) {
+		t.Fatalf("\nexpected '%v'\nreceived '%v'\n", lnExp, lnRec)
+	}
+
+	for k, exp := range lnExp {
+		if rec := lnRec[k]; exp != rec {
+			t.Fatalf("\nexpected '%v'\nreceived '%v'\n", lnExp, lnRec)
+		}
+	}
+
+	// 4. Append a new line
 	ff.Append(Line{"first": "princess", "last": "Leia"})
 
-	// 4. Correct a typo in the new line
+	// 5. Correct a typo in the new line
 	if err := ff.Set(ff.Len()-1, "first", "Princess"); err != nil {
 		t.Fatalf("\nunexpected error: '%s'\n", err.Error())
 	}
 
-	// 5. Swap the inserted line
+	// 6. Swap the inserted line
 	ff.Swap(ff.Len()-1, ff.Len()-2)
 
-	// 6. Write the flat file to the buffer
+	// 7. Write the flat file to the buffer
 	if _, err := ff.WriteTo(buf); err != nil {
 		t.Fatalf("\nunexpected error: '%s'\n", err.Error())
 	}
@@ -62,7 +76,7 @@ func TestFlatFile(t *testing.T) {
 		t.Fatalf("\nexpected '%s'\nreceived '%s'\n", exp, rec)
 	}
 
-	// 7. Get a valid field from a line
+	// 8. Get a valid field from a line
 	exp = "Luke"
 	rec, err := ff.Get(0, "first")
 	if err != nil {
@@ -73,7 +87,7 @@ func TestFlatFile(t *testing.T) {
 		t.Fatalf("\nexpected '%s'\nreceived '%s'\n", exp, rec)
 	}
 
-	// 8. Attempt to get an invalid field from a line
+	// 9. Attempt to get an invalid field from a line
 	exp = ""
 	rec, err = ff.Get(0, "middle")
 	if err == nil {

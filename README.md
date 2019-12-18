@@ -77,6 +77,14 @@ func (ff *FlatFile) ReadFrom(r io.Reader) (int64, error)
 
 Read from a reader into a flat file.
 
+### FlatFile.Remove
+
+```go
+func (ff *FlatFile) Remove(i int) Line
+```
+
+Remove and return a line.
+
 ### FlatFile.Set
 
 ```go
