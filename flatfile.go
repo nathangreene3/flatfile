@@ -31,8 +31,22 @@ func (ff *FlatFile) Append(lns ...Line) {
 // append a line.
 func (ff *FlatFile) append(ln Line) {
 	ln = ln.Copy()
-	for k, v := range ln {
-		ln[k] = strings.Trim(v[:min(len(v), ff.lineFmt[k].length)], " ")
+	for k, v := range ff.lineFmt {
+		if s, ok := ln[k]; ok {
+			ln[k] = strings.Trim(s[:min(len(s), v.length)], " ")
+		} else {
+			ln[k] = ""
+		}
+	}
+
+	ff.lines = append(ff.lines, ln)
+}
+
+// appendBytes ...
+func (ff *FlatFile) appendBytes(b []byte) {
+	ln := make(Line)
+	for k, v := range ff.lineFmt {
+		ln[k] = string(bytes.Trim(b[v.index:v.index+v.length], " "))
 	}
 
 	ff.lines = append(ff.lines, ln)
@@ -41,8 +55,8 @@ func (ff *FlatFile) append(ln Line) {
 // Fields returns a sorted slice of fields from a flat file.
 func (ff *FlatFile) Fields(i int) Fields {
 	fs := make(Fields, 0, len(ff.lines[i]))
-	for k, v := range ff.lines[i] {
-		fs = append(fs, NewField(v, ff.lineFmt[k].index, ff.lineFmt[k].length))
+	for k, v := range ff.lineFmt {
+		fs = append(fs, NewField(ff.lines[i][k], v.index, v.length))
 	}
 
 	sort.Slice(fs, func(i, j int) bool { return fs[i].Compare(fs[j]) < 0 })
@@ -60,10 +74,13 @@ func (ff *FlatFile) Get(i int, fieldName string) (string, error) {
 	return ff.lines[i].Get(fieldName)
 }
 
-// Insert a field name into a flat file. If a field name already exists, an
-// error will be returned. To overwrite an existing field name, use Set.
-func (ff *FlatFile) Insert(i int, fieldName, field string) error {
-	return ff.lines[i].Insert(fieldName, field)
+// Grow increases the flat file's capacity.
+func (ff *FlatFile) Grow(cap int) {
+	if len(ff.lines) < cap {
+		cpy := make(Lines, len(ff.lines), cap)
+		copy(cpy, ff.lines)
+		ff.lines = cpy
+	}
 }
 
 // Len returns the number of lines in the flat file.
@@ -82,36 +99,29 @@ func (ff *FlatFile) ReadFrom(r io.Reader) (int64, error) {
 		return 0, err
 	}
 
-	var (
-		lines = bytes.Split(contents, []byte("\n"))
-		cpy   = make(Lines, len(ff.lines), len(ff.lines)+len(lines))
-	)
-
-	copy(cpy, ff.lines)
-	ff.lines = cpy
-
+	lines := bytes.Split(contents, []byte("\n"))
+	ff.Grow(len(ff.lines) + len(lines))
 	for _, line := range lines {
-		ln := make(Line)
 		if 0 < len(line) {
-			for fieldName, lf := range ff.lineFmt {
-				ln[fieldName] = strings.Trim(string(line[lf.index:lf.index+lf.length]), " ")
-			}
+			ff.appendBytes(line)
 		}
-
-		ff.lines = append(ff.lines, ln)
 	}
 
 	return int64(len(contents)), nil
 }
 
-// Set a field name. Caution: this overwrites any existing field name. To
-// prevent overwriting, use Insert. To insert a new line, use Append.
-func (ff *FlatFile) Set(i int, fieldName, field string) error {
-	if ff.lineFmt[fieldName].length < len(field) {
+// Set a field. Caution: this overwrites any existing field.
+func (ff *FlatFile) Set(i int, fieldName, fieldContents string) error {
+	fmt, ok := ff.lineFmt[fieldName]
+	if !ok {
+		return errors.E(errors.Invalid, "invalid field name")
+	}
+
+	if fmt.length < len(fieldContents) {
 		return errors.E(errors.Invalid, "format length restriction")
 	}
 
-	ff.lines[i].Set(fieldName, field)
+	ff.lines[i].Set(fieldName, fieldContents)
 	return nil
 }
 
@@ -134,6 +144,11 @@ func (ff *FlatFile) StringAt(i int) string {
 	}
 
 	return strings.Join(s, "")
+}
+
+// Swap two lines.
+func (ff *FlatFile) Swap(i, j int) {
+	ff.lines[i], ff.lines[j] = ff.lines[j], ff.lines[i]
 }
 
 // WriteTo a given writer.
