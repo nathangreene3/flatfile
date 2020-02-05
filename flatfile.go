@@ -17,19 +17,22 @@ type FlatFile struct {
 }
 
 // New returns a flat file ready to read from a reader.
-func New(lf LineFmt) FlatFile {
-	return FlatFile{lineFmt: lf.Copy(), lines: make(Lines, 0)}
+func New(lf LineFmt, lns ...Line) *FlatFile {
+	ff := &FlatFile{lineFmt: lf.Copy(), lines: make(Lines, 0)}
+	return ff.Append(lns...)
 }
 
 // Append several lines.
-func (ff *FlatFile) Append(lns ...Line) {
+func (ff *FlatFile) Append(lns ...Line) *FlatFile {
 	for _, ln := range lns {
 		ff.append(ln)
 	}
+
+	return ff
 }
 
 // append a line.
-func (ff *FlatFile) append(ln Line) {
+func (ff *FlatFile) append(ln Line) *FlatFile {
 	ln = ln.Copy()
 	for k, v := range ff.lineFmt {
 		if s, ok := ln[k]; ok {
@@ -40,16 +43,18 @@ func (ff *FlatFile) append(ln Line) {
 	}
 
 	ff.lines = append(ff.lines, ln)
+	return ff
 }
 
 // appendBytes formats a byte slice into a line and appends it.
-func (ff *FlatFile) appendBytes(b []byte) {
+func (ff *FlatFile) appendBytes(b []byte) *FlatFile {
 	ln := make(Line)
 	for k, v := range ff.lineFmt {
 		ln[k] = string(bytes.Trim(b[v.index:v.index+v.length], " "))
 	}
 
 	ff.lines = append(ff.lines, ln)
+	return ff
 }
 
 // Fields returns a sorted slice of fields from a flat file.
@@ -76,12 +81,14 @@ func (ff *FlatFile) Get(i int, fieldName string) (string, error) {
 
 // Grow increases the flat file's capacity. If the given capacity is not greater
 // than the current length, then nothing happens.
-func (ff *FlatFile) Grow(cap int) {
+func (ff *FlatFile) Grow(cap int) *FlatFile {
 	if len(ff.lines) < cap {
 		cpy := make(Lines, len(ff.lines), cap)
 		copy(cpy, ff.lines)
 		ff.lines = cpy
 	}
+
+	return ff
 }
 
 // Len returns the number of lines in the flat file.
@@ -137,9 +144,34 @@ func (ff *FlatFile) Set(i int, fieldName, fieldContents string) error {
 	return nil
 }
 
+// Bytes ...
+func (ff *FlatFile) Bytes() ([]byte, error) {
+	buf := bytes.NewBuffer(make([]byte, 0, 1<<8))
+	for i := range ff.lines {
+		buf.Write(ff.BytesAt(i))
+	}
+
+	return buf.Bytes(), nil
+}
+
+// BytesAt ...
+func (ff *FlatFile) BytesAt(i int) []byte {
+	b := bytes.NewBuffer(make([]byte, 0, 1<<8))
+	for _, f := range ff.Fields(i) {
+		b.WriteString(f.contents + strings.Repeat(" ", f.length-len(f.contents)))
+	}
+
+	return b.Bytes()
+}
+
 // String returns flat file lines as strings, concatenated into a single string
 // by a carriage return.
 func (ff *FlatFile) String() string {
+	var sb strings.Builder
+	for i := range ff.lines {
+		sb.Write(ff.BytesAt())
+	}
+
 	ss := make([]string, 0, len(ff.lines))
 	for i := range ff.lines {
 		ss = append(ss, ff.StringAt(i))
@@ -150,12 +182,21 @@ func (ff *FlatFile) String() string {
 
 // StringAt returns the ith line as a string.
 func (ff *FlatFile) StringAt(i int) string {
-	s := make([]string, 0, len(ff.lines[i]))
+	var (
+		sb strings.Builder
+		n  int
+	)
+
 	for _, f := range ff.Fields(i) {
-		s = append(s, f.contents+strings.Repeat(" ", f.length-len(f.contents)))
+		n += f.length
 	}
 
-	return strings.Join(s, "")
+	sb.Grow(n)
+	for _, f := range ff.Fields(i) {
+		sb.WriteString(f.contents + strings.Repeat(" ", f.length-len(f.contents)))
+	}
+
+	return sb.String()
 }
 
 // Swap two lines.
