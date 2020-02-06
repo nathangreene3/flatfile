@@ -14,6 +14,7 @@ import (
 type FlatFile struct {
 	lineFmt LineFmt
 	lines   Lines
+	length  int
 }
 
 // New returns a flat file ready to read from a reader.
@@ -43,6 +44,7 @@ func (ff *FlatFile) append(ln Line) *FlatFile {
 	}
 
 	ff.lines = append(ff.lines, ln)
+	ff.length++
 	return ff
 }
 
@@ -54,10 +56,11 @@ func (ff *FlatFile) appendBytes(b []byte) *FlatFile {
 	}
 
 	ff.lines = append(ff.lines, ln)
+	ff.length++
 	return ff
 }
 
-// Fields returns a sorted slice of fields from a flat file.
+// Fields returns a sorted slice of fields from the ith line in a flat file.
 func (ff *FlatFile) Fields(i int) Fields {
 	fs := make(Fields, 0, len(ff.lines[i]))
 	for k, v := range ff.lineFmt {
@@ -70,6 +73,7 @@ func (ff *FlatFile) Fields(i int) Fields {
 
 // Format returns a copy of the flat file line format.
 func (ff *FlatFile) Format() LineFmt {
+	// TODO: Rename to LineFmt?
 	return ff.lineFmt.Copy()
 }
 
@@ -126,6 +130,7 @@ func (ff *FlatFile) Remove(i int) Line {
 	}
 
 	ff.lines = append(ff.lines[:i], ff.lines[i+1:]...)
+	ff.length--
 	return ln
 }
 
@@ -146,52 +151,74 @@ func (ff *FlatFile) Set(i int, fieldName, fieldContents string) error {
 
 // Bytes ...
 func (ff *FlatFile) Bytes() ([]byte, error) {
-	buf := bytes.NewBuffer(make([]byte, 0, 1<<8))
-	for i := range ff.lines {
-		buf.Write(ff.BytesAt(i))
+	if ff.length < 1 {
+		return make([]byte, 0), nil
 	}
 
+	lineLen := 1 // Every line except the last line contains at least '\n'
+	for _, lf := range ff.lineFmt {
+		lineLen += lf.length
+	}
+
+	// Builder is more efficient than Buffer, but doesn't provide a Bytes function.
+	buf := bytes.NewBuffer(make([]byte, 0, lineLen*ff.length))
+	for i := range ff.lines[:ff.length-1] {
+		buf.Write(ff.BytesAt(i))
+		buf.WriteByte('\n')
+	}
+
+	buf.Write(ff.BytesAt(ff.length - 1))
 	return buf.Bytes(), nil
 }
 
 // BytesAt ...
 func (ff *FlatFile) BytesAt(i int) []byte {
-	b := bytes.NewBuffer(make([]byte, 0, 1<<8))
-	for _, f := range ff.Fields(i) {
-		b.WriteString(f.contents + strings.Repeat(" ", f.length-len(f.contents)))
+	var n int
+	for _, lf := range ff.lineFmt {
+		n += lf.length
 	}
 
-	return b.Bytes()
+	buf := bytes.NewBuffer(make([]byte, 0, n))
+	for _, f := range ff.Fields(i) {
+		buf.WriteString(f.contents + strings.Repeat(" ", f.length-len(f.contents)))
+	}
+
+	return buf.Bytes()
 }
 
 // String returns flat file lines as strings, concatenated into a single string
 // by a carriage return.
 func (ff *FlatFile) String() string {
+	if ff.length < 1 {
+		return ""
+	}
+
+	lineLen := 1 // Every line except the last line contains at least '\n'
+	for _, lf := range ff.lineFmt {
+		lineLen += lf.length
+	}
+
+	// Builder is more efficient than Buffer, but doesn't provide a Bytes function.
 	var sb strings.Builder
-	for i := range ff.lines {
-		sb.Write(ff.BytesAt())
+	sb.Grow(ff.length * lineLen)
+	for i := range ff.lines[:ff.length-1] {
+		sb.Write(ff.BytesAt(i))
+		sb.WriteByte('\n')
 	}
 
-	ss := make([]string, 0, len(ff.lines))
-	for i := range ff.lines {
-		ss = append(ss, ff.StringAt(i))
-	}
-
-	return strings.Join(ss, "\n")
+	sb.Write(ff.BytesAt(ff.length - 1))
+	return sb.String()
 }
 
 // StringAt returns the ith line as a string.
 func (ff *FlatFile) StringAt(i int) string {
-	var (
-		sb strings.Builder
-		n  int
-	)
-
+	var lineLen int
 	for _, f := range ff.Fields(i) {
-		n += f.length
+		lineLen += f.length
 	}
 
-	sb.Grow(n)
+	var sb strings.Builder
+	sb.Grow(lineLen)
 	for _, f := range ff.Fields(i) {
 		sb.WriteString(f.contents + strings.Repeat(" ", f.length-len(f.contents)))
 	}

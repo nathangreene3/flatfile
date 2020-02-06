@@ -5,7 +5,7 @@ import "git.biscorp.local/serverdev/errors"
 // Line represents a single line in a flat file. Each key-valued pair represents
 // a substring of a line where the keys are the field names and the values are
 // the contents (fields) of a subset of a line in a flat file.
-type Line map[string]string
+type Line map[string]string // field name --> field contents
 
 // Lines represents several lines.
 type Lines []Line
