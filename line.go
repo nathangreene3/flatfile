@@ -1,7 +1,5 @@
 package flatfile
 
-import "git.biscorp.local/serverdev/errors"
-
 // Line represents a single line in a flat file. Each key-valued pair represents
 // a substring of a line where the keys are the field names and the values are
 // the contents (fields) of a subset of a line in a flat file.
@@ -11,15 +9,15 @@ type Line map[string]string // field name --> field contents
 type Lines []Line
 
 // Contains indicates if a field name is found in a line.
-func (ln *Line) Contains(fieldName string) bool {
-	_, ok := (*ln)[fieldName]
+func (ln Line) Contains(fieldName string) bool {
+	_, ok := ln[fieldName]
 	return ok
 }
 
 // Copy a line.
-func (ln *Line) Copy() Line {
+func (ln Line) Copy() Line {
 	cpy := make(Line)
-	for k, v := range *ln {
+	for k, v := range ln {
 		cpy[k] = v
 	}
 
@@ -28,43 +26,43 @@ func (ln *Line) Copy() Line {
 
 // Delete a field name from a line. Returns an error if the field name is not
 // found.
-func (ln *Line) Delete(fieldName string) error {
-	if _, ok := (*ln)[fieldName]; ok {
-		delete(*ln, fieldName)
+func (ln Line) Delete(fieldName string) error {
+	if _, ok := ln[fieldName]; ok {
+		delete(ln, fieldName)
 		return nil
 	}
 
-	return errors.E(errors.NotExist, "field name not found")
+	return errFieldNotExist
 }
 
 // Get a field associated with a field name. Returns an error if the field name
 // is not found.
-func (ln *Line) Get(fieldName string) (string, error) {
-	if field, ok := (*ln)[fieldName]; ok {
+func (ln Line) Get(fieldName string) (string, error) {
+	if field, ok := ln[fieldName]; ok {
 		return field, nil
 	}
 
-	return "", errors.E(errors.NotExist, "field name not found")
+	return "", errFieldNotExist
 }
 
 // Insert a field into a line. Returns an error if the field name already
 // exists. To overwrite an existing key, use Set.
-func (ln *Line) Insert(fieldName, field string) error {
-	if _, ok := (*ln)[fieldName]; ok {
-		return errors.E(errors.Exist, "field name already exists")
+func (ln Line) Insert(fieldName, contents string) error {
+	if _, ok := ln[fieldName]; ok {
+		return errFieldExists
 	}
 
-	(*ln)[fieldName] = field
+	ln[fieldName] = contents
 	return nil
 }
 
 // Len returns the number of fields.
-func (ln *Line) Len() int {
-	return len(*ln)
+func (ln Line) Len() int {
+	return len(ln)
 }
 
 // Set a field to a given field name. Caution: this overwrites any existing
 // field associated with the field name. To prevent overwriting, use Insert.
-func (ln *Line) Set(fieldName, field string) {
-	(*ln)[fieldName] = field
+func (ln Line) Set(fieldName, contents string) {
+	ln[fieldName] = contents
 }

@@ -7,24 +7,29 @@ import (
 	"sort"
 	"strings"
 
-	"git.biscorp.local/serverdev/errors"
+	"github.com/nathangreene3/table"
 )
 
 // FlatFile consists of a slice of lines and a format applied to each line.
 type FlatFile struct {
 	lineFmt LineFmt
 	lines   Lines
-	length  int
 }
 
 // New returns a flat file ready to read from a reader.
-func New(lf LineFmt, lns ...Line) *FlatFile {
-	ff := &FlatFile{lineFmt: lf.Copy(), lines: make(Lines, 0)}
-	return ff.Append(lns...)
+func New(lf LineFmt) *FlatFile {
+	return &FlatFile{lineFmt: lf.Copy(), lines: make(Lines, 0)}
 }
 
-// Append several lines.
+// FromTable ...
+func FromTable(t *table.Table) *FlatFile {
+	// TODO
+	return nil
+}
+
+// Append appends several lines to a flat file.
 func (ff *FlatFile) Append(lns ...Line) *FlatFile {
+	ff.grow(len(lns))
 	for _, ln := range lns {
 		ff.append(ln)
 	}
@@ -32,7 +37,7 @@ func (ff *FlatFile) Append(lns ...Line) *FlatFile {
 	return ff
 }
 
-// append a line.
+// append appends a line to a flat file. It is advised the caller grow the flat file first.
 func (ff *FlatFile) append(ln Line) *FlatFile {
 	ln = ln.Copy()
 	for k, v := range ff.lineFmt {
@@ -44,130 +49,58 @@ func (ff *FlatFile) append(ln Line) *FlatFile {
 	}
 
 	ff.lines = append(ff.lines, ln)
-	ff.length++
 	return ff
 }
 
-// appendBytes formats a byte slice into a line and appends it.
-func (ff *FlatFile) appendBytes(b []byte) *FlatFile {
+// AppendBts ...
+func (ff *FlatFile) AppendBts(bts ...[]byte) *FlatFile {
+	for _, b := range bts {
+		ff.appendBts(b)
+	}
+
+	return ff
+}
+
+// appendBts formats a byte slice into a line and appends it. It is advised the caller grow the flat file first.
+func (ff *FlatFile) appendBts(b []byte) *FlatFile {
 	ln := make(Line)
-	for k, v := range ff.lineFmt {
-		ln[k] = string(bytes.Trim(b[v.index:v.index+v.length], " "))
+	for k, f := range ff.lineFmt {
+		ln[k] = string(bytes.Trim(b[f.index:f.index+f.length], " "))
 	}
 
 	ff.lines = append(ff.lines, ln)
-	ff.length++
 	return ff
 }
 
-// Fields returns a sorted slice of fields from the ith line in a flat file.
-func (ff *FlatFile) Fields(i int) Fields {
-	fs := make(Fields, 0, len(ff.lines[i]))
-	for k, v := range ff.lineFmt {
-		fs = append(fs, NewField(ff.lines[i][k], v.index, v.length))
-	}
-
-	sort.Slice(fs, func(i, j int) bool { return fs[i].Compare(fs[j]) < 0 })
-	return fs
-}
-
-// Format returns a copy of the flat file line format.
-func (ff *FlatFile) Format() LineFmt {
-	// TODO: Rename to LineFmt?
-	return ff.lineFmt.Copy()
-}
-
-// Get the field associated with a given field name in the ith line of a flat
-// file.
-func (ff *FlatFile) Get(i int, fieldName string) (string, error) {
-	return ff.lines[i].Get(fieldName)
-}
-
-// Grow increases the flat file's capacity. If the given capacity is not greater
-// than the current length, then nothing happens.
-func (ff *FlatFile) Grow(cap int) *FlatFile {
-	if len(ff.lines) < cap {
-		cpy := make(Lines, len(ff.lines), cap)
-		copy(cpy, ff.lines)
-		ff.lines = cpy
+// AppendStrs ...
+func (ff *FlatFile) AppendStrs(ss ...string) *FlatFile {
+	for _, s := range ss {
+		ff.appendBts([]byte(s))
 	}
 
 	return ff
-}
-
-// Len returns the number of lines in the flat file.
-func (ff *FlatFile) Len() int {
-	return len(ff.lines)
-}
-
-// ReadFrom a reader into a flat file.
-func (ff *FlatFile) ReadFrom(r io.Reader) (int64, error) {
-	if len(ff.lineFmt) == 0 {
-		return 0, errors.E(errors.Invalid, "line format not initialized")
-	}
-
-	contents, err := ioutil.ReadAll(r)
-	if err != nil {
-		return 0, err
-	}
-
-	lines := bytes.Split(contents, []byte("\n"))
-	ff.Grow(len(ff.lines) + len(lines))
-	for _, line := range lines {
-		if 0 < len(line) {
-			ff.appendBytes(line)
-		}
-	}
-
-	return int64(len(contents)), nil
-}
-
-// Remove and return a line.
-func (ff *FlatFile) Remove(i int) Line {
-	var ln Line
-	if i < len(ff.lines) {
-		ln = ff.lines[i]
-	}
-
-	ff.lines = append(ff.lines[:i], ff.lines[i+1:]...)
-	ff.length--
-	return ln
-}
-
-// Set a field. Caution: this overwrites any existing field.
-func (ff *FlatFile) Set(i int, fieldName, fieldContents string) error {
-	fmt, ok := ff.lineFmt[fieldName]
-	if !ok {
-		return errors.E(errors.Invalid, "invalid field name")
-	}
-
-	if fmt.length < len(fieldContents) {
-		return errors.E(errors.Invalid, "format length restriction")
-	}
-
-	ff.lines[i].Set(fieldName, fieldContents)
-	return nil
 }
 
 // Bytes ...
 func (ff *FlatFile) Bytes() ([]byte, error) {
-	if ff.length < 1 {
+	m := len(ff.lines)
+	if m < 1 {
 		return make([]byte, 0), nil
 	}
 
-	lineLen := 1 // Every line except the last line contains at least '\n'
+	n := 1 // Every line except the last line contains at least '\n'
 	for _, lf := range ff.lineFmt {
-		lineLen += lf.length
+		n += lf.length
 	}
 
 	// Builder is more efficient than Buffer, but doesn't provide a Bytes function.
-	buf := bytes.NewBuffer(make([]byte, 0, lineLen*ff.length))
-	for i := range ff.lines[:ff.length-1] {
+	buf := bytes.NewBuffer(make([]byte, 0, m*n))
+	for i := range ff.lines[:m-1] {
 		buf.Write(ff.BytesAt(i))
 		buf.WriteByte('\n')
 	}
 
-	buf.Write(ff.BytesAt(ff.length - 1))
+	buf.Write(ff.BytesAt(m - 1))
 	return buf.Bytes(), nil
 }
 
@@ -186,27 +119,144 @@ func (ff *FlatFile) BytesAt(i int) []byte {
 	return buf.Bytes()
 }
 
+// Fields returns a sorted slice of fields from the ith line in a flat file.
+func (ff *FlatFile) Fields(i int) Fields {
+	fs := make(Fields, 0, len(ff.lines[i]))
+	for k, v := range ff.lineFmt {
+		fs = append(fs, NewField(ff.lines[i][k], v.index, v.length))
+	}
+
+	sort.Slice(fs, func(i, j int) bool { return fs[i].Compare(fs[j]) < 0 })
+	return fs
+}
+
+// LineFormat returns a copy of the flat file line format.
+func (ff *FlatFile) LineFormat() LineFmt {
+	return ff.lineFmt.Copy()
+}
+
+// Get the ith line from a flat file.
+func (ff *FlatFile) Get(i int) Line {
+	return ff.lines[i].Copy()
+}
+
+// GetField the field associated with a given field name in the ith line of a flat
+// file.
+func (ff *FlatFile) GetField(i int, fieldName string) (string, error) {
+	return ff.lines[i].Get(fieldName)
+}
+
+// Grow increases the flat file's capacity. If the given capacity is not greater
+// than the current length, then nothing happens.
+func (ff *FlatFile) grow(n int) *FlatFile {
+	var (
+		m = len(ff.lines)
+		c = m + n
+	)
+
+	if cap(ff.lines) < c {
+		cpy := make(Lines, m, c)
+		copy(cpy, ff.lines)
+		ff.lines = cpy
+	}
+
+	return ff
+}
+
+// Len returns the number of lines in the flat file.
+func (ff *FlatFile) Len() int {
+	return len(ff.lines)
+}
+
+// ReadFrom a reader into a flat file.
+func (ff *FlatFile) ReadFrom(r io.Reader) (int64, error) {
+	if len(ff.lineFmt) == 0 {
+		return 0, errLineFmtNotInit
+	}
+
+	cts, err := ioutil.ReadAll(r)
+	if err != nil {
+		return 0, err
+	}
+
+	lns := bytes.Split(cts, []byte("\n"))
+	ff.grow(len(lns))
+	for _, ln := range lns {
+		if 0 < len(ln) {
+			ff.appendBts(ln)
+		}
+	}
+
+	return int64(len(cts)), nil
+}
+
+// Remove and return a line.
+func (ff *FlatFile) Remove(i int) Line {
+	var ln Line
+	if i < len(ff.lines) {
+		ln = ff.lines[i]
+	}
+
+	ff.lines = append(ff.lines[:i], ff.lines[i+1:]...)
+	return ln
+}
+
+// Reset ...
+func (ff *FlatFile) Reset() *FlatFile {
+	ff.lines = make(Lines, 0)
+	return ff
+}
+
+// Set the ith line in a flat file.
+func (ff *FlatFile) Set(i int, ln Line) error {
+	oldLn := ff.lines[i].Copy()
+	for k, v := range ln {
+		if err := ff.SetField(i, k, v); err != nil {
+			ff.lines[i] = oldLn // Restores original data
+			return err
+		}
+	}
+
+	return nil
+}
+
+// SetField sets a field. Caution: this overwrites any existing field.
+func (ff *FlatFile) SetField(i int, fieldName, fieldContents string) error {
+	f, ok := ff.lineFmt[fieldName]
+	if !ok {
+		return errFieldNotExist
+	}
+
+	if f.length < len(fieldContents) {
+		return errFieldLengthRestriction
+	}
+
+	ff.lines[i].Set(fieldName, fieldContents)
+	return nil
+}
+
 // String returns flat file lines as strings, concatenated into a single string
 // by a carriage return.
 func (ff *FlatFile) String() string {
-	if ff.length < 1 {
+	m := len(ff.lines)
+	if m < 1 {
 		return ""
 	}
 
-	lineLen := 1 // Every line except the last line contains at least '\n'
+	n := 1 // Every line except the last line contains at least '\n'
 	for _, lf := range ff.lineFmt {
-		lineLen += lf.length
+		n += lf.length
 	}
 
 	// Builder is more efficient than Buffer, but doesn't provide a Bytes function.
 	var sb strings.Builder
-	sb.Grow(ff.length * lineLen)
-	for i := range ff.lines[:ff.length-1] {
+	sb.Grow(m * n)
+	for i := range ff.lines[:m-1] {
 		sb.Write(ff.BytesAt(i))
 		sb.WriteByte('\n')
 	}
 
-	sb.Write(ff.BytesAt(ff.length - 1))
+	sb.Write(ff.BytesAt(m - 1))
 	return sb.String()
 }
 
@@ -227,8 +277,16 @@ func (ff *FlatFile) StringAt(i int) string {
 }
 
 // Swap two lines.
-func (ff *FlatFile) Swap(i, j int) {
+func (ff *FlatFile) Swap(i, j int) *FlatFile {
 	ff.lines[i], ff.lines[j] = ff.lines[j], ff.lines[i]
+	return ff
+}
+
+// Table ...
+func (ff *FlatFile) Table() *table.Table {
+	// TODO: return a table.
+	// Does table implement Reader/Writer?
+	return nil
 }
 
 // WriteTo a given writer.

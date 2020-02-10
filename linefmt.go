@@ -1,20 +1,18 @@
 package flatfile
 
-import "git.biscorp.local/serverdev/errors"
-
 // LineFmt maps field names to their formats.
 type LineFmt map[string]Format
 
 // Contains indicates if a field name is found in a line format.
-func (lf *LineFmt) Contains(fieldName string) bool {
-	_, ok := (*lf)[fieldName]
+func (lf LineFmt) Contains(fieldName string) bool {
+	_, ok := lf[fieldName]
 	return ok
 }
 
 // Copy a line format.
-func (lf *LineFmt) Copy() LineFmt {
+func (lf LineFmt) Copy() LineFmt {
 	cpy := make(map[string]Format)
-	for k, v := range *lf {
+	for k, v := range lf {
 		cpy[k] = v
 	}
 
@@ -22,44 +20,44 @@ func (lf *LineFmt) Copy() LineFmt {
 }
 
 // Delete a field name from a line format.
-func (lf *LineFmt) Delete(fieldName string) error {
-	if _, ok := (*lf)[fieldName]; ok {
-		delete(*lf, fieldName)
+func (lf LineFmt) Delete(fieldName string) error {
+	if _, ok := lf[fieldName]; ok {
+		delete(lf, fieldName)
 		return nil
 	}
 
-	return errors.E(errors.NotExist, "field name not found")
+	return errFieldNotExist
 }
 
 // Get a field format associated by a field name.
-func (lf *LineFmt) Get(fieldName string) (Format, error) {
-	if fieldFmt, ok := (*lf)[fieldName]; ok {
+func (lf LineFmt) Get(fieldName string) (Format, error) {
+	if fieldFmt, ok := lf[fieldName]; ok {
 		return fieldFmt, nil
 	}
 
-	return Format{}, errors.E(errors.NotExist, "field name not found")
+	return Format{}, errFieldNotExist
 }
 
 // Insert a field format into a line format. Returns an error if the field name
 // already exists. To overwrite an existing field format associated with the
 // field name, use Set.
-func (lf *LineFmt) Insert(fieldName string, fieldFmt Format) error {
-	if _, ok := (*lf)[fieldName]; ok {
-		return errors.E(errors.Exist, "field name already exists")
+func (lf LineFmt) Insert(fieldName string, fieldFmt Format) error {
+	if _, ok := lf[fieldName]; ok {
+		return errFieldExists
 	}
 
-	(*lf)[fieldName] = fieldFmt
+	lf[fieldName] = fieldFmt
 	return nil
 }
 
 // Len returns the number of field names in a line format.
-func (lf *LineFmt) Len() int {
-	return len(*lf)
+func (lf LineFmt) Len() int {
+	return len(lf)
 }
 
 // Set a field format to a given field name. Caution: this overwrites any
 // existing field associated with the field name. To prevent overwriting, use
 // Insert.
-func (lf *LineFmt) Set(fieldName string, fieldFmt Format) {
-	(*lf)[fieldName] = fieldFmt
+func (lf LineFmt) Set(fieldName string, fieldFmt Format) {
+	lf[fieldName] = fieldFmt
 }

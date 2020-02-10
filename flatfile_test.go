@@ -57,10 +57,11 @@ func TestFlatFile(t *testing.T) {
 	}
 
 	// 4. Append a new line
-	ff.Append(Line{"first": "princess", "last": "Leia"})
+	// ff.AppendLines(Line{"first": "princess", "last": "Leia"})
+	ff.AppendBts([]byte("Leia    princess"))
 
 	// 5. Correct a typo in the new line
-	if err := ff.Set(ff.Len()-1, "first", "Princess"); err != nil {
+	if err := ff.SetField(ff.Len()-1, "first", "Princess"); err != nil {
 		t.Fatalf("\nunexpected error: '%s'\n", err.Error())
 	}
 
@@ -78,7 +79,7 @@ func TestFlatFile(t *testing.T) {
 
 	// 8. Get a valid field from a line
 	exp = "Luke"
-	rec, err := ff.Get(0, "first")
+	rec, err := ff.GetField(0, "first")
 	if err != nil {
 		t.Fatalf("\nunexpected '%s'\n", err.Error())
 	}
@@ -89,7 +90,7 @@ func TestFlatFile(t *testing.T) {
 
 	// 9. Attempt to get an invalid field from a line
 	exp = ""
-	rec, err = ff.Get(0, "middle")
+	rec, err = ff.GetField(0, "middle")
 	if err == nil {
 		t.Fatalf("\nexpected error\n received '%v'\n", err)
 	}

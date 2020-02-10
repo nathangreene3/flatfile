@@ -12,5 +12,10 @@ github.com/iancoleman/strcase v0.0.0-20180726023541-3605ed457bf7 h1:ux/56T2xqZO/
 github.com/iancoleman/strcase v0.0.0-20180726023541-3605ed457bf7/go.mod h1:SK73tn/9oHe+/Y0h39VT4UCxmurVJkR5NA7kMEAOgSE=
 github.com/jinzhu/now v0.0.0-20180511015916-ed742868f2ae/go.mod h1:oHTiXerJ20+SfYcrdlBO7rzZRJWGwSTQ0iUY2jI6Gfc=
 github.com/jmoiron/sqlx v0.0.0-20180614180643-0dae4fefe7c0/go.mod h1:IiEW3SEiiErVyFdH8NTuWjSifiEQKUoyK3LNqr2kCHU=
+github.com/nathangreene3/math v0.0.0-20190925035329-baee60882fba h1:5Ri0oOrexyYTUZT20pqIgPK1/qiaFKuRYpyB+UPqXXM=
+github.com/nathangreene3/math v0.0.0-20190925035329-baee60882fba/go.mod h1:oTWc2X7f31Ko+Idqh+YCg7T0KnK3RkGx3qtP/nYFin0=
+github.com/nathangreene3/table v0.0.0-20190920025320-afc9626595eb/go.mod h1:/AKC6nWqJhoSJqVOclaDdWgJell3ezSF9AP0zET9Txs=
+github.com/nathangreene3/table v0.0.0-20191106012521-a371e0620d93 h1:kTUkrWourJaqMB0PJQIWCtua2mGf1aJC9eTVoK39JTY=
+github.com/nathangreene3/table v0.0.0-20191106012521-a371e0620d93/go.mod h1:VIQDPfii/L7Jv9uYas2aSQC6onoNv95PHQSfnu0ppNI=
 golang.org/x/crypto v0.0.0-20180808211826-de0752318171/go.mod h1:6SG95UA2DQfeDnfUPMdvaQW0Q7yPrPDi9nlGo2tz2b4=
 golang.org/x/sys v0.0.0-20180816055513-1c9583448a9c/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=

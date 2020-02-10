@@ -1,6 +1,6 @@
 package flatfile
 
-// Format consists of field data used to import from flat files.
+// Format defines a field within a line.
 type Format struct {
 	index, length int
 }
