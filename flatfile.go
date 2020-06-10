@@ -2,295 +2,314 @@ package flatfile
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
+	"runtime"
 	"sort"
 	"strings"
-
-	"github.com/nathangreene3/table"
 )
 
-// FlatFile consists of a slice of lines and a format applied to each line.
+// A FlatFile represents a file in which each line contains a fixed number of characters with fields partitioned over the line length. Not all columns need be used. A formatter, determined by the caller, is required to format each line. Usually, flat files have one and only one format for all lines, but here, a formatter allows multiple formats.
+//
+// * lines: Slice of lines. Each line is formatted using the formats function (Formatter) when read.
+//
+// * formats: Formatter. This formatter determines how to parse a line from a string.
 type FlatFile struct {
-	lineFmt LineFmt
-	lines   Lines
+	formats Formatter
+	lines   []Line
 }
 
-// New returns a flat file ready to read from a reader.
-func New(lf LineFmt) *FlatFile {
-	return &FlatFile{lineFmt: lf.Copy(), lines: make(Lines, 0)}
+const (
+	// lf is the line ending for non-Windows machines.
+	lf string = "\n"
+
+	// crlf is the line ending for Windows machines.
+	crlf string = "\r\n"
+)
+
+// New returns a new flat file given a formatter.
+func New(f Formatter) *FlatFile {
+	return &FlatFile{
+		lines:   make([]Line, 0),
+		formats: f,
+	}
 }
 
-// FromTable ...
-func FromTable(t *table.Table) *FlatFile {
-	// TODO
+// Append several lines to a flat file.
+func (ff *FlatFile) Append(lines ...*Line) {
+	for i := 0; i < len(lines); i++ {
+		ff.lines = append(ff.lines, *lines[i].Copy())
+	}
+}
+
+// AppendBts appends a line to a flat file.
+func (ff *FlatFile) AppendBts(line []byte) error {
+	return ff.AppendStr(string(line))
+}
+
+// AppendStr appends a line to a flat file. If the line doesn't parse (i.e., the provided formatter returns nil), an error will be returned.
+func (ff *FlatFile) AppendStr(line string) error {
+	fmts := ff.formats(line)
+	if fmts == nil {
+		return fmt.Errorf(errStrFmt, line)
+	}
+
+	ff.Append(NewLine(line, fmts...))
 	return nil
 }
 
-// Append appends several lines to a flat file.
-func (ff *FlatFile) Append(lns ...Line) *FlatFile {
-	ff.grow(len(lns))
-	for _, ln := range lns {
-		ff.append(ln)
+// ByteLen returns the entire length of the flat file in bytes. If called on Windows, each line is assumed to end in CRLF and will be larger than on other operating systems.
+func (ff *FlatFile) ByteLen() int {
+	n := len(ff.lines) // Each line ends in at least LF (\n)
+	if runtime.GOOS == "windows" {
+		n <<= 1 // Each line ends in CRLF (\r\n)
 	}
 
-	return ff
+	for i := 0; i < len(ff.lines); i++ {
+		n += ff.lines[i].length
+	}
+
+	return n
 }
 
-// append appends a line to a flat file. It is advised the caller grow the flat file first.
-func (ff *FlatFile) append(ln Line) *FlatFile {
-	ln = ln.Copy()
-	for k, v := range ff.lineFmt {
-		if s, ok := ln[k]; ok {
-			ln[k] = strings.Trim(s[:min(len(s), v.length)], " ")
-		} else {
-			ln[k] = ""
-		}
+// Bytes returns the flat file as a byte slice. If called on Windows, each line will end in CRLF, including the last line. Otherwise, each line will end in LF.
+func (ff *FlatFile) Bytes() []byte {
+	lineEnding := lf
+	if runtime.GOOS == "windows" {
+		lineEnding = crlf
 	}
 
-	ff.lines = append(ff.lines, ln)
-	return ff
-}
-
-// AppendBts ...
-func (ff *FlatFile) AppendBts(bts ...[]byte) *FlatFile {
-	for _, b := range bts {
-		ff.appendBts(b)
-	}
-
-	return ff
-}
-
-// appendBts formats a byte slice into a line and appends it. It is advised the caller grow the flat file first.
-func (ff *FlatFile) appendBts(b []byte) *FlatFile {
-	ln := make(Line)
-	for k, f := range ff.lineFmt {
-		ln[k] = string(bytes.Trim(b[f.index:f.index+f.length], " "))
-	}
-
-	ff.lines = append(ff.lines, ln)
-	return ff
-}
-
-// AppendStrs ...
-func (ff *FlatFile) AppendStrs(ss ...string) *FlatFile {
-	for _, s := range ss {
-		ff.appendBts([]byte(s))
-	}
-
-	return ff
-}
-
-// Bytes ...
-func (ff *FlatFile) Bytes() ([]byte, error) {
-	m := len(ff.lines)
-	if m < 1 {
-		return make([]byte, 0), nil
-	}
-
-	n := 1 // Every line except the last line contains at least '\n'
-	for _, lf := range ff.lineFmt {
-		n += lf.length
-	}
-
-	// Builder is more efficient than Buffer, but doesn't provide a Bytes function.
-	buf := bytes.NewBuffer(make([]byte, 0, m*n))
-	for i := range ff.lines[:m-1] {
-		buf.Write(ff.BytesAt(i))
-		buf.WriteByte('\n')
-	}
-
-	buf.Write(ff.BytesAt(m - 1))
-	return buf.Bytes(), nil
-}
-
-// BytesAt ...
-func (ff *FlatFile) BytesAt(i int) []byte {
-	var n int
-	for _, lf := range ff.lineFmt {
-		n += lf.length
-	}
-
-	buf := bytes.NewBuffer(make([]byte, 0, n))
-	for _, f := range ff.Fields(i) {
-		buf.WriteString(f.contents + strings.Repeat(" ", f.length-len(f.contents)))
+	buf := *bytes.NewBuffer(make([]byte, 0, ff.ByteLen()))
+	for i := 0; i < len(ff.lines); i++ {
+		buf.WriteString(ff.lines[i].String())
+		buf.WriteString(lineEnding)
 	}
 
 	return buf.Bytes()
 }
 
-// Fields returns a sorted slice of fields from the ith line in a flat file.
-func (ff *FlatFile) Fields(i int) Fields {
-	fs := make(Fields, 0, len(ff.lines[i]))
-	for k, v := range ff.lineFmt {
-		fs = append(fs, NewField(ff.lines[i][k], v.index, v.length))
+// BytesAt returns the ith line as a slice of bytes.
+func (ff *FlatFile) BytesAt(i int) []byte {
+	return ff.lines[i].Bytes()
+}
+
+// Clear removes the contents of a flat file. WARNING: This is irreversible.
+func (ff *FlatFile) Clear() {
+	ff.lines = make([]Line, 0)
+}
+
+// Index returns the index of a key and true if the key is found in the ith line.
+func (ff *FlatFile) Index(i int, key string) (int, bool) {
+	index, ok := ff.lines[i].keyToIndex[key]
+	return index, ok
+}
+
+// Field returns the field given a key in the ith line.
+func (ff *FlatFile) Field(i int, key string) (Field, error) {
+	return ff.lines[i].Field(key)
+}
+
+// FieldAt returns the jth field in the ith line.
+func (ff *FlatFile) FieldAt(i, j int) Field {
+	return ff.lines[i].FieldAt(j)
+}
+
+// Formats returns the list of formats given a line. This function parses a line but does not add it to the flat file.
+func (ff *FlatFile) Formats(line string) []Format {
+	return ff.formats(line)
+}
+
+// FormatsAt returns a slice of formats for the ith line.
+func (ff *FlatFile) FormatsAt(i int) []Format {
+	return ff.lines[i].Formats()
+}
+
+// Keys returns the keys of the ith line.
+func (ff *FlatFile) Keys(i int) []string {
+	keys := make([]string, 0, len(ff.lines[i].fields))
+	for j := 0; j < len(ff.lines[i].fields); j++ {
+		keys = append(keys, ff.lines[i].fields[j].key)
 	}
 
-	sort.Slice(fs, func(i, j int) bool { return fs[i].Compare(fs[j]) < 0 })
-	return fs
+	return keys
 }
 
-// LineFormat returns a copy of the flat file line format.
-func (ff *FlatFile) LineFormat() LineFmt {
-	return ff.lineFmt.Copy()
+// KeyValue returns the jth key-value pair in the ith line.
+func (ff *FlatFile) KeyValue(i, j int) (string, string) {
+	return ff.lines[i].KeyValueAt(j)
 }
 
-// Get the ith line from a flat file.
-func (ff *FlatFile) Get(i int) Line {
-	return ff.lines[i].Copy()
-}
-
-// GetField the field associated with a given field name in the ith line of a flat
-// file.
-func (ff *FlatFile) GetField(i int, fieldName string) (string, error) {
-	return ff.lines[i].Get(fieldName)
-}
-
-// Grow increases the flat file's capacity. If the given capacity is not greater
-// than the current length, then nothing happens.
-func (ff *FlatFile) grow(n int) *FlatFile {
-	var (
-		m = len(ff.lines)
-		c = m + n
-	)
-
-	if cap(ff.lines) < c {
-		cpy := make(Lines, m, c)
-		copy(cpy, ff.lines)
-		ff.lines = cpy
+// KeyValues returns a map of the keys to their values in the ith line.
+func (ff *FlatFile) KeyValues(i int) map[string]string {
+	m := make(map[string]string)
+	for j := 0; j < len(ff.lines[i].fields); j++ {
+		m[ff.lines[i].fields[j].key] = ff.lines[i].fields[j].value
 	}
 
-	return ff
+	return m
 }
 
-// Len returns the number of lines in the flat file.
+// Len returns the number of lines.
 func (ff *FlatFile) Len() int {
 	return len(ff.lines)
 }
 
-// ReadFrom a reader into a flat file.
-func (ff *FlatFile) ReadFrom(r io.Reader) (int64, error) {
-	if len(ff.lineFmt) == 0 {
-		return 0, errLineFmtNotInit
-	}
+// Line returns the ith line in a flat file.
+func (ff *FlatFile) Line(i int) *Line {
+	return ff.lines[i].Copy()
+}
 
-	cts, err := ioutil.ReadAll(r)
+// Note: io.Read interface will not be supported because the caller MAY not know how big the byte slice should be for the flat file to fill. ByteLen could tell them that, but it would be annoying at best and probably dangerous at the worst.
+
+// ReadFile reads a file into a flat file.  The contents will be appended.
+func (ff *FlatFile) ReadFile(filename string) error {
+	b, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
-	lns := bytes.Split(cts, []byte("\n"))
-	ff.grow(len(lns))
-	for _, ln := range lns {
-		if 0 < len(ln) {
-			ff.appendBts(ln)
-		}
-	}
-
-	return int64(len(cts)), nil
+	_, err = ff.ReadFrom(bytes.NewBuffer(b))
+	return err
 }
 
-// Remove and return a line.
-func (ff *FlatFile) Remove(i int) Line {
-	var ln Line
-	if i < len(ff.lines) {
-		ln = ff.lines[i]
-	}
+// ReadFrom implements io.ReaderFrom interface. The number of bytes read reflects the number of bytes written to the flat file, not the actual number of bytes in the file. The white space and line endings (LF or CRLF) are removed, but added back in WriteFile.
+func (ff *FlatFile) ReadFrom(r io.Reader) (int64, error) {
+	var (
+		b   = make([]byte, 1<<7)
+		buf bytes.Buffer
+		n0  = ff.ByteLen()
+		n   int
+		err error
+	)
 
+	for {
+		switch n, err = r.Read(b); err {
+		case nil:
+			buf.Write(b[:n])
+		case io.EOF:
+			buf.Write(b[:n])
+			bts := bytes.Split(buf.Bytes(), []byte{'\n'})
+			for i := 0; i < len(bts); i++ {
+				bts[i] = bytes.Trim(bts[i], "\r")
+				if 0 < len(bts[i]) {
+					if _, err := ff.Write(bts[i]); err != nil {
+						return int64(ff.ByteLen() - n0), err
+					}
+				}
+			}
+
+			return int64(ff.ByteLen() - n0), nil
+		default:
+			return int64(ff.ByteLen() - n0), err
+		}
+	}
+}
+
+// Remove the ith line from a flat file.
+func (ff *FlatFile) Remove(i int) *Line {
+	line := ff.lines[i]
 	ff.lines = append(ff.lines[:i], ff.lines[i+1:]...)
-	return ln
+	return &line
 }
 
-// Reset ...
-func (ff *FlatFile) Reset() *FlatFile {
-	ff.lines = make(Lines, 0)
-	return ff
+// Set sets the ith line in a flat file.
+func (ff *FlatFile) Set(i int, line Line) {
+	ff.lines[i] = *line.Copy()
 }
 
-// Set the ith line in a flat file.
-func (ff *FlatFile) Set(i int, ln Line) error {
-	oldLn := ff.lines[i].Copy()
-	for k, v := range ln {
-		if err := ff.SetField(i, k, v); err != nil {
-			ff.lines[i] = oldLn // Restores original data
-			return err
-		}
+// SetStr sets the ith line in a flat file.
+func (ff *FlatFile) SetStr(i int, line string) error {
+	fmts := ff.formats(line)
+	if fmts == nil {
+		return fmt.Errorf(errStrFmt, line)
 	}
 
+	ff.Set(i, *NewLine(line, fmts...))
 	return nil
 }
 
-// SetField sets a field. Caution: this overwrites any existing field.
-func (ff *FlatFile) SetField(i int, fieldName, fieldContents string) error {
-	f, ok := ff.lineFmt[fieldName]
-	if !ok {
-		return errFieldNotExist
-	}
-
-	if f.length < len(fieldContents) {
-		return errFieldLengthRestriction
-	}
-
-	ff.lines[i].Set(fieldName, fieldContents)
-	return nil
+// SetValue sets the value given a key in the ith line.
+func (ff *FlatFile) SetValue(i int, key, value string) error {
+	return ff.lines[i].Set(key, value)
 }
 
-// String returns flat file lines as strings, concatenated into a single string
-// by a carriage return.
+// SetValueAt sets the jth value in the ith line.
+func (ff *FlatFile) SetValueAt(i, j int, value string) {
+	ff.lines[i].SetAt(j, value)
+}
+
+// Sort a flat file's lines given a less-than comparison function.
+func (ff *FlatFile) Sort(less func(line0, line1 Line) bool) {
+	sort.Slice(ff.lines, func(i, j int) bool { return less(ff.lines[i], ff.lines[j]) })
+}
+
+// String returns a string representing a flat file.
 func (ff *FlatFile) String() string {
-	m := len(ff.lines)
-	if m < 1 {
-		return ""
-	}
-
-	n := 1 // Every line except the last line contains at least '\n'
-	for _, lf := range ff.lineFmt {
-		n += lf.length
-	}
-
-	// Builder is more efficient than Buffer, but doesn't provide a Bytes function.
 	var sb strings.Builder
-	sb.Grow(m * n)
-	for i := range ff.lines[:m-1] {
-		sb.Write(ff.BytesAt(i))
-		sb.WriteByte('\n')
+	sb.Grow(ff.ByteLen())
+	for i := 0; i < len(ff.lines); i++ {
+		sb.WriteString(ff.lines[i].String() + "\n")
 	}
 
-	sb.Write(ff.BytesAt(m - 1))
 	return sb.String()
 }
 
 // StringAt returns the ith line as a string.
 func (ff *FlatFile) StringAt(i int) string {
-	var lineLen int
-	for _, f := range ff.Fields(i) {
-		lineLen += f.length
+	return ff.lines[i].String()
+}
+
+// Strings returns a slice of strings representing each line in the flat file.
+func (ff *FlatFile) Strings() []string {
+	ss := make([]string, 0, len(ff.lines))
+	for i := 0; i < len(ff.lines); i++ {
+		ss = append(ss, ff.StringAt(i))
 	}
 
-	var sb strings.Builder
-	sb.Grow(lineLen)
-	for _, f := range ff.Fields(i) {
-		sb.WriteString(f.contents + strings.Repeat(" ", f.length-len(f.contents)))
+	return ss
+}
+
+// Value returns the value given a key in the ith line.
+func (ff *FlatFile) Value(i int, key string) (string, error) {
+	return ff.lines[i].Value(key)
+}
+
+// ValueAt returns the jth value in the ith line.
+func (ff *FlatFile) ValueAt(i, j int) string {
+	return ff.lines[i].ValueAt(j)
+}
+
+// Values returns a slice of the values in the ith line.
+func (ff *FlatFile) Values(i int) []string {
+	values := make([]string, 0, len(ff.lines[i].fields))
+	for j := 0; j < len(ff.lines[i].fields); j++ {
+		values = append(values, ff.lines[i].fields[j].value)
 	}
 
-	return sb.String()
+	return values
 }
 
-// Swap two lines.
-func (ff *FlatFile) Swap(i, j int) *FlatFile {
-	ff.lines[i], ff.lines[j] = ff.lines[j], ff.lines[i]
-	return ff
+// Write implements the io.Writer interface. This is equivalent to AppendBts.
+func (ff *FlatFile) Write(line []byte) (int, error) {
+	if err := ff.AppendBts(line); err != nil {
+		return 0, err
+	}
+
+	return len(line), nil
 }
 
-// Table ...
-func (ff *FlatFile) Table() *table.Table {
-	// TODO: return a table.
-	// Does table implement Reader/Writer?
-	return nil
+// WriteFile writes a flat file to file given a file name.
+func (ff *FlatFile) WriteFile(fileName string) error {
+	return ioutil.WriteFile(fileName, ff.Bytes(), os.ModePerm)
 }
 
-// WriteTo a given writer.
-func (ff *FlatFile) WriteTo(w io.Writer) (int64, error) {
-	n, err := w.Write([]byte(ff.String()))
-	return int64(n), err
+// WriteString implements the io.StringWriter interface. It is equivalent to AppendStr.
+func (ff *FlatFile) WriteString(line string) (int, error) {
+	if err := ff.AppendStr(line); err != nil {
+		return 0, err
+	}
+
+	return len(line), nil
 }

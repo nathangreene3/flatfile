@@ -1,68 +1,176 @@
 package flatfile
 
-// Line represents a single line in a flat file. Each key-valued pair represents
-// a substring of a line where the keys are the field names and the values are
-// the contents (fields) of a subset of a line in a flat file.
-type Line map[string]string // field name --> field contents
+import (
+	"bytes"
+	"fmt"
+	"sort"
+	"strings"
+)
 
-// Lines represents several lines.
-type Lines []Line
+// A Line is a flat line within a flat file.
+//
+// * fields:     List of formatted values.
+//
+// * keyToIndex: Maps the keys to the index in fields (not the index within the line).
+//
+// * length:     Number of characters the line contains.
+type Line struct {
+	fields     []Field
+	keyToIndex map[string]int
+	length     int
+}
 
-// Contains indicates if a field name is found in a line.
-func (ln Line) Contains(fieldName string) bool {
-	_, ok := ln[fieldName]
-	return ok
+// NewLine returns a new line given a list of formats.
+func NewLine(line string, fmts ...Format) *Line {
+	ln := Line{
+		fields:     make([]Field, 0, len(fmts)),
+		keyToIndex: make(map[string]int),
+		length:     len(line), // When printed, the original line length will be preserved, but the contents may be lost if the provided formats don't adequately cover the line
+	}
+
+	for i := 0; i < len(fmts); i++ {
+		ln.fields = append(ln.fields, Field{Format: fmts[i], value: strings.Trim(line[fmts[i].index:fmts[i].index+fmts[i].length], " ")})
+	}
+
+	sort.Slice(ln.fields, func(i, j int) bool { return ln.fields[i].index < ln.fields[j].index })
+	for i := 0; i < len(ln.fields); i++ {
+		ln.keyToIndex[ln.fields[i].key] = i
+	}
+
+	return &ln
+}
+
+// Bytes returns a byte slice representing a line.
+func (ln *Line) Bytes() []byte {
+	buf := bytes.NewBuffer(make([]byte, 0, ln.length))
+	for i := 0; i < len(ln.fields); i++ {
+		buf.Write(bytes.Repeat([]byte{' '}, ln.fields[i].index-buf.Len()))
+		buf.Write(ln.fields[i].Bytes())
+	}
+
+	buf.Write(bytes.Repeat([]byte{' '}, ln.length-buf.Len()))
+	return buf.Bytes()
 }
 
 // Copy a line.
-func (ln Line) Copy() Line {
-	cpy := make(Line)
-	for k, v := range ln {
-		cpy[k] = v
+func (ln *Line) Copy() *Line {
+	cpy := Line{
+		fields:     append(make([]Field, 0, len(ln.fields)), ln.fields...),
+		keyToIndex: make(map[string]int),
+		length:     ln.length,
 	}
 
-	return cpy
+	for k, v := range ln.keyToIndex {
+		cpy.keyToIndex[k] = v
+	}
+
+	return &cpy
 }
 
-// Delete a field name from a line. Returns an error if the field name is not
-// found.
-func (ln Line) Delete(fieldName string) error {
-	if _, ok := ln[fieldName]; ok {
-		delete(ln, fieldName)
+// Field returns the field given a key.
+func (ln *Line) Field(key string) (Field, error) {
+	if i, ok := ln.keyToIndex[key]; ok {
+		return ln.fields[i], nil
+	}
+
+	return Field{}, fmt.Errorf(errStrKeyNotFound, key, ln.Formats())
+}
+
+// FieldAt returns the ith field in a line.
+func (ln *Line) FieldAt(i int) Field {
+	return ln.fields[i]
+}
+
+// Formats returns a slice of formats in a line.
+func (ln *Line) Formats() []Format {
+	fmts := make([]Format, 0, len(ln.fields))
+	for i := 0; i < len(ln.fields); i++ {
+		fmts = append(fmts, ln.fields[i].Format)
+	}
+
+	return fmts
+}
+
+// Value a value in a line given a key.
+func (ln *Line) Value(key string) (string, error) {
+	if i, ok := ln.keyToIndex[key]; ok {
+		return ln.fields[i].value, nil
+	}
+
+	return "", fmt.Errorf(errStrKeyNotFound, key, ln.Formats())
+}
+
+// Index returns the index a field begins at in a line given a key.
+func (ln *Line) Index(key string) (int, error) {
+	if i, ok := ln.keyToIndex[key]; ok {
+		return ln.fields[i].index, nil
+	}
+
+	return 0, fmt.Errorf(errStrKeyNotFound, key, ln.Formats())
+}
+
+// IndexAt returns the ith index in a line.
+func (ln *Line) IndexAt(i int) int {
+	return ln.fields[i].index
+}
+
+// Key returns the ith field key.
+func (ln *Line) Key(i int) string {
+	return ln.fields[i].key
+}
+
+// KeyValueAt returns the ith key-value pair.
+func (ln *Line) KeyValueAt(i int) (string, string) {
+	return ln.fields[i].key, ln.fields[i].value
+}
+
+// Length returns the maximum number of characters in a field given a key.
+func (ln *Line) Length(key string) (int, error) {
+	if i, ok := ln.keyToIndex[key]; ok {
+		return ln.fields[i].length, nil
+	}
+
+	return 0, fmt.Errorf(errStrKeyNotFound, key, ln.Formats())
+}
+
+// LengthAt returns the maximum number of characters in the ith field.
+func (ln *Line) LengthAt(i int) int {
+	return ln.fields[i].length
+}
+
+// Set a value in a line given a key.
+func (ln *Line) Set(key, value string) error {
+	if i, ok := ln.keyToIndex[key]; ok {
+		ln.SetAt(i, value)
 		return nil
 	}
 
-	return errFieldNotExist
+	return fmt.Errorf(errStrKeyNotFound, key, ln.Formats())
 }
 
-// Get a field associated with a field name. Returns an error if the field name
-// is not found.
-func (ln Line) Get(fieldName string) (string, error) {
-	if field, ok := ln[fieldName]; ok {
-		return field, nil
+// SetAt sets the ith value in a line.
+func (ln *Line) SetAt(i int, value string) {
+	if n := ln.fields[i].length; n < len(value) {
+		value = value[:ln.fields[i].length]
 	}
 
-	return "", errFieldNotExist
+	ln.fields[i].value = value
 }
 
-// Insert a field into a line. Returns an error if the field name already
-// exists. To overwrite an existing key, use Set.
-func (ln Line) Insert(fieldName, contents string) error {
-	if _, ok := ln[fieldName]; ok {
-		return errFieldExists
+// String returns a string representing a line.
+func (ln *Line) String() string {
+	var sb strings.Builder
+	sb.Grow(ln.length)
+
+	for i := 0; i < len(ln.fields); i++ {
+		sb.WriteString(strings.Repeat(" ", ln.fields[i].index-sb.Len()) + ln.fields[i].String())
 	}
 
-	ln[fieldName] = contents
-	return nil
+	sb.WriteString(strings.Repeat(" ", ln.length-sb.Len()))
+	return sb.String()
 }
 
-// Len returns the number of fields.
-func (ln Line) Len() int {
-	return len(ln)
-}
-
-// Set a field to a given field name. Caution: this overwrites any existing
-// field associated with the field name. To prevent overwriting, use Insert.
-func (ln Line) Set(fieldName, contents string) {
-	ln[fieldName] = contents
+// ValueAt returns the ith value in a line.
+func (ln *Line) ValueAt(i int) string {
+	return ln.fields[i].value
 }

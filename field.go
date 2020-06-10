@@ -1,30 +1,41 @@
 package flatfile
 
-// Field extends Format by adding contents.
+import "bytes"
+
+// Field extends a format.
+//
+// * Format: Embedded within the field.
+//
+// * value: Contents of the field, typically cleaned of leading and trailing whitespace.
 type Field struct {
 	Format
-	contents string
+	value string
 }
 
-// Fields is a slice of fields.
-type Fields []Field
-
-// NewField returns a new field.
-func NewField(contents string, index, length int) Field {
-	return Field{contents: contents, Format: NewFormat(index, length)}
-}
-
-// Compare two fields.
-func (f *Field) Compare(fld Field) int {
-	r := f.Format.Compare(fld.Format)
-	switch {
-	case r != 0:
-		return r
-	case f.contents < fld.contents:
-		return -1
-	case fld.contents < f.contents:
-		return 1
-	default:
-		return 0
+// NewField returns a new field that references a keyed value in a line at an index
+// having a maximum allowed length.
+func NewField(key, value string, index, length int) Field {
+	if length < len(value) {
+		value = value[:length]
 	}
+
+	return Field{
+		Format: Format{
+			key:    key,
+			index:  index,
+			length: length,
+		},
+		value: value,
+	}
+}
+
+// Bytes returns a slice of bytes representing a field.
+func (fld *Field) Bytes() []byte {
+	return append(append(make([]byte, 0, fld.length), []byte(fld.value)...), bytes.Repeat([]byte{' '}, fld.length-len(fld.value))...)
+}
+
+// String returns a string representing a field.
+func (fld *Field) String() string {
+	// TODO: Determine what's more efficient, concatenating strings or converting bytes to string.
+	return string(fld.Bytes()) // fld.value + strings.Repeat(" ", fld.length-len(fld.value))
 }
