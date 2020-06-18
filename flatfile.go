@@ -2,12 +2,14 @@ package flatfile
 
 import (
 	"bytes"
-	"fmt"
+	"encoding/json"
+	"errors"
 	"io"
 	"io/ioutil"
 	"os"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -53,7 +55,7 @@ func (ff *FlatFile) AppendBts(line []byte) error {
 func (ff *FlatFile) AppendStr(line string) error {
 	fmts := ff.formats(line)
 	if fmts == nil {
-		return fmt.Errorf(errStrFmt, line)
+		return NewParsingError(line)
 	}
 
 	ff.Append(NewLine(line, fmts...))
@@ -124,6 +126,43 @@ func (ff *FlatFile) Formats(line string) []Format {
 // FormatsAt returns a slice of formats for the ith line.
 func (ff *FlatFile) FormatsAt(i int) []Format {
 	return ff.lines[i].Formats()
+}
+
+// MarshalJSON ...TODO: Make this leaner.
+func (ff *FlatFile) MarshalJSON() ([]byte, error) {
+	buf := bytes.NewBuffer(make([]byte, 0, 256)) // TODO: Find an appropriate estimate for capacity
+	buf.WriteByte('[')
+	for i := 0; i < len(ff.lines); i++ {
+		buf.WriteByte('[')
+		for j := 0; j < len(ff.lines[i].fields); j++ {
+			buf.WriteString(
+				"{" +
+					"\"key\":\"" + ff.lines[i].fields[j].key + "\"," +
+					"\"value\":\"" + ff.lines[i].fields[j].value + "\"," +
+					"\"index\":\"" + strconv.Itoa(ff.lines[i].fields[j].index) + "\"," +
+					"\"length\":\"" + strconv.Itoa(ff.lines[i].fields[j].length) + "\"" +
+					"}",
+			)
+
+			if j+1 < len(ff.lines[i].fields) {
+				buf.WriteByte(',')
+			}
+		}
+
+		buf.WriteByte(']')
+		if i+1 < len(ff.lines) {
+			buf.WriteByte(',')
+		}
+	}
+
+	buf.WriteByte(']')
+
+	b := buf.Bytes()
+	if !json.Valid(b) {
+		return nil, NewMarshalError(b)
+	}
+
+	return b, nil
 }
 
 // Keys returns the keys of the ith line.
@@ -223,7 +262,7 @@ func (ff *FlatFile) Set(i int, line Line) {
 func (ff *FlatFile) SetStr(i int, line string) error {
 	fmts := ff.formats(line)
 	if fmts == nil {
-		return fmt.Errorf(errStrFmt, line)
+		return NewParsingError(line)
 	}
 
 	ff.Set(i, *NewLine(line, fmts...))
@@ -269,6 +308,11 @@ func (ff *FlatFile) Strings() []string {
 	}
 
 	return ss
+}
+
+// UnmarshalJSON ...TODO
+func (ff *FlatFile) UnmarshalJSON(b []byte) error {
+	return errors.New("flatfile: FlatFile.UnmarshalJSON not yet implemented")
 }
 
 // Value returns the value given a key in the ith line.

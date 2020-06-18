@@ -1,5 +1,13 @@
 package flatfile
 
+import (
+	"encoding/json"
+	"reflect"
+	"strconv"
+
+	"github.com/tidwall/gjson"
+)
+
 // Formatter returns the formats that will be used in parsing a given line. If a line doesn't parse, it should return nil.
 type Formatter func(line string) []Format
 
@@ -37,4 +45,51 @@ func (fmt *Format) Key() string {
 // Length returns the maximum number of characters the value can be within a line.
 func (fmt *Format) Length() int {
 	return fmt.length
+}
+
+// MarshalJSON ...
+func (fmt *Format) MarshalJSON() ([]byte, error) {
+	b := []byte(
+		"{" +
+			"\"key\":\"" + fmt.key + "\"," +
+			"\"index\":" + strconv.Itoa(fmt.index) + "," +
+			"\"length\":" + strconv.Itoa(fmt.length) +
+			"}",
+	)
+
+	if !json.Valid(b) {
+		return nil, NewMarshalError(b)
+	}
+
+	return b, nil
+}
+
+// UnmarshalJSON ...
+func (fmt *Format) UnmarshalJSON(b []byte) error {
+	index := gjson.GetBytes(b, "index").Num
+	if float64(int(index)) != index {
+		return &json.UnmarshalTypeError{
+			Value:  "integer",
+			Type:   reflect.TypeOf(index),
+			Offset: 0, // TODO
+			Struct: "Format",
+			Field:  "index",
+		}
+	}
+
+	length := gjson.GetBytes(b, "length").Num
+	if float64(int(length)) != length {
+		return &json.UnmarshalTypeError{
+			Value:  "integer",
+			Type:   reflect.TypeOf(length),
+			Offset: 0, // TODO
+			Struct: "Format",
+			Field:  "length",
+		}
+	}
+
+	fmt.key = gjson.GetBytes(b, "key").Str
+	fmt.index = int(index)
+	fmt.length = int(length)
+	return nil
 }

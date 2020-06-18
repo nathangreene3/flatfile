@@ -2,6 +2,7 @@ package flatfile
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -66,66 +67,68 @@ func TestFlatFile(t *testing.T) {
 		// Improper format
 		name := "Yoda"
 		if err := ff.AppendStr(name); err == nil {
-			t.Fatalf("\nExpected error: '%s'\n", fmt.Errorf(errStrFmt, name).Error())
+			t.Fatalf("\nexpected error: %q\n", NewParsingError(name).Error())
 		}
 
 		// Proper format
 		if err := ff.AppendStr("Yoda    "); err != nil {
-			t.Fatalf("\nUnexpected error: '%s'\n", err.Error())
+			t.Fatalf("\nunexpected error: %q\n", err.Error())
 		}
 
 		// Two names
 		// Improper format
 		name = "Luke    Skywalker"
 		if err := ff.AppendStr(name); err == nil {
-			t.Fatalf("\nExpected error: '%s'\n", fmt.Errorf(errStrFmt, name).Error())
+			t.Fatalf("\nexpected error: %q\n", NewParsingError(name).Error())
 		}
 
 		// Proper format
 		if err := ff.AppendStr("Luke    Skywalke"); err != nil {
-			t.Fatalf("\nUnexpected error: '%s'\n", err.Error())
+			t.Fatalf("\nunexpected error: %q\n", err.Error())
 		}
 
 		// Three names
 		// Improper format
 		name = "PrincessLeiaOrgana"
 		if err := ff.AppendStr(name); err == nil {
-			t.Fatalf("\nExpected error: '%s'\n", fmt.Errorf(errStrFmt, name).Error())
+			t.Fatalf("\nexpected error: %q\n", NewParsingError(name).Error())
 		}
 
 		// Proper format
 		if err := ff.AppendStr("PrincessLeia    Organa  "); err != nil {
-			t.Fatalf("\nUnexpected error: '%s'\n", err.Error())
+			t.Fatalf("\nunexpected error: %q\n", err.Error())
 		}
 
 		// Names are correct lengths, but S bleeds into the firstname
 		if err := ff.AppendStr("Han    Solo     "); err != nil {
-			t.Fatalf("\nUnexpected error: '%s'\n", err.Error())
+			t.Fatalf("\nunexpected error: %q\n", err.Error())
 		}
 
 		// Set wrong value
 		key := "name"
 		if err := ff.SetValue(ff.Len()-1, key, "Han"); err == nil {
-			t.Fatalf("\nExpected error: '%s'\n", fmt.Errorf(errStrKeyNotFound, key, ff.FormatsAt(ff.Len()-1)).Error())
+			t.Fatalf("\nexpected error: %q\n", NewMissingKeyError(key, ff.FormatsAt(ff.Len()-1)).Error())
 		}
 
 		if err := ff.SetValue(ff.Len()-1, "first", "Han"); err != nil {
-			t.Fatalf("\nUnexpected error: '%s'\n", err.Error())
+			t.Fatalf("\nunexpected error: %q\n", err.Error())
 		}
 
 		if err := ff.SetValue(ff.Len()-1, "last", "Solo"); err != nil {
-			t.Fatalf("\nUnexpected error: '%s'\n", err.Error())
+			t.Fatalf("\nunexpected error: %q\n", err.Error())
 		}
 
 		// Remove last line entirely and append the corrected one to the end
 		ff.Remove(ff.Len() - 1)
 		if err := ff.AppendStr("Han     Solo    "); err != nil {
-			t.Fatalf("\nUnexpected error: '%s'\n", err.Error())
+			t.Fatalf("\nunexpected error: %q\n", err.Error())
 		}
 
 		// Sort longest lines to shortest
 		ff.Sort(func(ln0, ln1 Line) bool { return ln1.length < ln0.length })
-		ff.WriteFile("starwars_sorted.txt")
+		if err := ff.WriteFile("starwars_sorted.txt"); err != nil {
+			t.Fatalf("\nunexpected error: %q\n", err.Error())
+		}
 
 		ff.Clear()
 	}
@@ -134,46 +137,145 @@ func TestFlatFile(t *testing.T) {
 		// Read from reader (a file)
 		file, err := os.OpenFile("starwars_1.txt", os.O_RDONLY, os.ModePerm)
 		if err != nil {
-			t.Fatalf("\nUnexpected error: '%s'\n", err.Error())
+			t.Fatalf("\nunexpected error: %q\n", err.Error())
 		}
 
 		if _, err := ff.ReadFrom(file); err != nil {
-			t.Fatalf("\nUnexpected error: '%s'\n", err.Error())
+			t.Fatalf("\nunexpected error: %q\n", err.Error())
 		}
 
 		if err := ff.WriteFile("starwars_2.txt"); err != nil {
-			t.Fatalf("\nUnexpected error: '%s'\n", err.Error())
+			t.Fatalf("\nunexpected error: %q\n", err.Error())
 		}
 
 		r, err := equalFiles("starwars_1.txt", "starwars_2.txt")
 		if err != nil {
-			t.Fatalf("\nUnexpected error: '%s'\n", err.Error())
+			t.Fatalf("\nunexpected error: %q\n", err.Error())
 		}
 
 		if !r {
-			t.Fatalf("\nExpected '%s' and '%s' to be equal\n", "starwars_1.txt", "starwars_2.txt")
+			t.Fatalf("\nexpected %q and %q to be equal\n", "starwars_1.txt", "starwars_2.txt")
 		}
 
 		ff.Clear()
 
 		// Just read file like you're supposed to
 		if err := ff.ReadFile("starwars_1.txt"); err != nil {
-			t.Fatalf("\nUnexpected error: '%s'\n", err.Error())
+			t.Fatalf("\nunexpected error: %q\n", err.Error())
 		}
 
 		if err := ff.WriteFile("starwars_2.txt"); err != nil {
-			t.Fatalf("\nUnexpected error: '%s'\n", err.Error())
+			t.Fatalf("\nunexpected error: %q\n", err.Error())
 		}
 
 		r, err = equalFiles("starwars_1.txt", "starwars_2.txt")
 		if err != nil {
-			t.Fatalf("\nUnexpected error: '%s'\n", err.Error())
+			t.Fatalf("\nunexpected error: %q\n", err.Error())
 		}
 
 		if !r {
-			t.Fatalf("\nExpected '%s' and '%s' to be equal\n", "starwars_1.txt", "starwars_2.txt")
+			t.Fatalf("\nexpected %q and %q to be equal\n", "starwars_1.txt", "starwars_2.txt")
 		}
 
 		ff.Clear()
 	}
+}
+
+func TestJSON(t *testing.T) {
+	fmts := func(line string) []Format {
+		switch len(line) {
+		case 8: // Single name
+			return []Format{
+				NewFormat("name", 0, 8),
+			}
+		case 16: // Two names
+			return []Format{
+				NewFormat("first", 0, 8),
+				NewFormat("last", 8, 8),
+			}
+		case 24: // Three names
+			return []Format{
+				NewFormat("title", 0, 8),
+				NewFormat("first", 8, 8),
+				NewFormat("last", 16, 8),
+			}
+		default:
+			return nil
+		}
+	}
+
+	ff := New(fmts)
+	if err := ff.ReadFile("starwars_1.txt"); err != nil {
+		t.Fatalf("\nunexpected error: %q\n", err.Error())
+	}
+
+	b, err := json.Marshal(ff)
+	if err != nil {
+		t.Fatalf("\nunexpected error: %q\n", err.Error())
+	}
+
+	if !json.Valid(b) {
+		t.Fatalf("\nexpected valid json, received %q\n", string(b))
+	}
+
+	ff.Clear()
+	ff.AppendStr("        ")
+	ff.AppendStr("12345678")
+
+	b, err = json.Marshal(ff)
+	if err != nil {
+		t.Fatalf("\nunexpected error: %q\n", err.Error())
+	}
+
+	if !json.Valid(b) {
+		t.Fatalf("\nexpected valid json, received %q\n", string(b))
+	}
+}
+
+func BenchmarkJSON(b *testing.B) {
+	fmts := func(line string) []Format {
+		switch len(line) {
+		case 8: // Single name
+			return []Format{
+				NewFormat("name", 0, 8),
+			}
+		case 16: // Two names
+			return []Format{
+				NewFormat("first", 0, 8),
+				NewFormat("last", 8, 8),
+			}
+		case 24: // Three names
+			return []Format{
+				NewFormat("title", 0, 8),
+				NewFormat("first", 8, 8),
+				NewFormat("last", 16, 8),
+			}
+		default:
+			return nil
+		}
+	}
+
+	var (
+		ff = New(fmts)
+		ln = "12345678"
+	)
+
+	benchmarkMarshalFlatFile(b, ff, fmt.Sprintf("%d lines of %q", ff.Len(), ln))
+	for i := 0; i < 10; i++ {
+		if err := ff.AppendStr(ln); err != nil {
+			b.Fatalf("\nunexpected error: %q", err.Error())
+		}
+
+		benchmarkMarshalFlatFile(b, ff, fmt.Sprintf("%d lines of %q", ff.Len(), ln))
+	}
+}
+
+func benchmarkMarshalFlatFile(b *testing.B, ff *FlatFile, name string) bool {
+	f := func(b0 *testing.B) {
+		for i := 0; i < b0.N; i++ {
+			_, _ = json.Marshal(ff)
+		}
+	}
+
+	return b.Run(name, f)
 }

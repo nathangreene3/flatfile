@@ -1,6 +1,13 @@
 package flatfile
 
-import "bytes"
+import (
+	"bytes"
+	"encoding/json"
+	"reflect"
+	"strconv"
+
+	"github.com/tidwall/gjson"
+)
 
 // Field extends a format.
 //
@@ -34,8 +41,57 @@ func (fld *Field) Bytes() []byte {
 	return append(append(make([]byte, 0, fld.length), []byte(fld.value)...), bytes.Repeat([]byte{' '}, fld.length-len(fld.value))...)
 }
 
+// MarshalJSON ...
+func (fld *Field) MarshalJSON() ([]byte, error) {
+	b := []byte(
+		"{" +
+			"\"key\":\"" + fld.key + "\"," +
+			"\"value\":\"" + fld.value + "\"," +
+			"\"index\":" + strconv.Itoa(fld.index) + "," +
+			"\"length\":" + strconv.Itoa(fld.length) +
+			"}",
+	)
+
+	if !json.Valid(b) {
+		return nil, NewMarshalError(b)
+	}
+
+	return b, nil
+}
+
 // String returns a string representing a field.
 func (fld *Field) String() string {
 	// TODO: Determine what's more efficient, concatenating strings or converting bytes to string.
 	return string(fld.Bytes()) // fld.value + strings.Repeat(" ", fld.length-len(fld.value))
+}
+
+// UnmarshalJSON decodes json-encoded bytes.
+func (fld *Field) UnmarshalJSON(b []byte) error {
+	index := gjson.GetBytes(b, "index").Num
+	if float64(int(index)) != index {
+		return &json.UnmarshalTypeError{
+			Value:  "integer",
+			Type:   reflect.TypeOf(index),
+			Offset: 0, // TODO
+			Struct: "Field",
+			Field:  "index",
+		}
+	}
+
+	length := gjson.GetBytes(b, "length").Num
+	if float64(int(length)) != length {
+		return &json.UnmarshalTypeError{
+			Value:  "integer",
+			Type:   reflect.TypeOf(length),
+			Offset: 0, // TODO
+			Struct: "Field",
+			Field:  "length",
+		}
+	}
+
+	fld.key = gjson.GetBytes(b, "key").Str
+	fld.value = gjson.GetBytes(b, "value").Str
+	fld.index = int(index)
+	fld.length = int(length)
+	return nil
 }

@@ -1,3 +1,8 @@
 module github.com/nathangreene3/flatfile
 
-require github.com/nathangreene3/table v0.0.0-20191106012521-a371e0620d93
+go 1.14
+
+require (
+	github.com/tidwall/gjson v1.6.0
+	github.com/tidwall/sjson v1.1.1
+)

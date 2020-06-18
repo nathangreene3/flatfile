@@ -2,8 +2,10 @@ package flatfile
 
 import (
 	"bytes"
-	"fmt"
+	"encoding/json"
+	"errors"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -73,7 +75,7 @@ func (ln *Line) Field(key string) (Field, error) {
 		return ln.fields[i], nil
 	}
 
-	return Field{}, fmt.Errorf(errStrKeyNotFound, key, ln.Formats())
+	return Field{}, NewMissingKeyError(key, ln.Formats())
 }
 
 // FieldAt returns the ith field in a line.
@@ -91,13 +93,42 @@ func (ln *Line) Formats() []Format {
 	return fmts
 }
 
+// MarshalJSON ...
+func (ln *Line) MarshalJSON() ([]byte, error) {
+	buf := bytes.NewBuffer(make([]byte, 0, 256))
+	buf.WriteByte('[')
+	for i := 0; i < len(ln.fields); i++ {
+		buf.WriteString(
+			"{" +
+				"\"key\":\"" + ln.fields[i].key + "\"," +
+				"\"value\":\"" + ln.fields[i].value + "\"," +
+				"\"index\":\"" + strconv.Itoa(ln.fields[i].index) + "\"," +
+				"\"length\":\"" + strconv.Itoa(ln.fields[i].length) + "\"" +
+				"}",
+		)
+
+		if i+1 < len(ln.fields) {
+			buf.WriteByte(',')
+		}
+	}
+
+	buf.WriteByte(']')
+
+	b := buf.Bytes()
+	if !json.Valid(b) {
+		return nil, NewMarshalError(b)
+	}
+
+	return b, nil
+}
+
 // Value a value in a line given a key.
 func (ln *Line) Value(key string) (string, error) {
 	if i, ok := ln.keyToIndex[key]; ok {
 		return ln.fields[i].value, nil
 	}
 
-	return "", fmt.Errorf(errStrKeyNotFound, key, ln.Formats())
+	return "", NewMissingKeyError(key, ln.Formats())
 }
 
 // Index returns the index a field begins at in a line given a key.
@@ -106,7 +137,7 @@ func (ln *Line) Index(key string) (int, error) {
 		return ln.fields[i].index, nil
 	}
 
-	return 0, fmt.Errorf(errStrKeyNotFound, key, ln.Formats())
+	return 0, NewMissingKeyError(key, ln.Formats())
 }
 
 // IndexAt returns the ith index in a line.
@@ -130,7 +161,7 @@ func (ln *Line) Length(key string) (int, error) {
 		return ln.fields[i].length, nil
 	}
 
-	return 0, fmt.Errorf(errStrKeyNotFound, key, ln.Formats())
+	return 0, NewMissingKeyError(key, ln.Formats())
 }
 
 // LengthAt returns the maximum number of characters in the ith field.
@@ -145,7 +176,7 @@ func (ln *Line) Set(key, value string) error {
 		return nil
 	}
 
-	return fmt.Errorf(errStrKeyNotFound, key, ln.Formats())
+	return NewMissingKeyError(key, ln.Formats())
 }
 
 // SetAt sets the ith value in a line.
@@ -168,6 +199,11 @@ func (ln *Line) String() string {
 
 	sb.WriteString(strings.Repeat(" ", ln.length-sb.Len()))
 	return sb.String()
+}
+
+// UnmarshalJSON ...TODO
+func (ln *Line) UnmarshalJSON(b []byte) error {
+	return errors.New("flatfile: Line.UnmarshalJSON not yet implemented")
 }
 
 // ValueAt returns the ith value in a line.
