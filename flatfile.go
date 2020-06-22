@@ -181,7 +181,25 @@ func (ff *FlatFile) MarshalJSON() ([]byte, error) {
 						"\"jsonType\":" + strconv.Itoa(int(ff.lines[i].fields[j].jsonType)) +
 						"}",
 				)
-			case Number, Boolean:
+			case Number:
+				value := strings.TrimPrefix(ff.lines[i].fields[j].value, "0")
+				switch {
+				case len(value) == 0:
+					value = "0"
+				case value[0] == '.':
+					value = "0" + value
+				}
+
+				buf.WriteString(
+					"{" +
+						"\"key\":\"" + ff.lines[i].fields[j].key + "\"," +
+						"\"value\":" + value + "," +
+						"\"index\":\"" + strconv.Itoa(ff.lines[i].fields[j].index) + "\"," +
+						"\"length\":\"" + strconv.Itoa(ff.lines[i].fields[j].length) + "\"," +
+						"\"jsonType\":" + strconv.Itoa(int(ff.lines[i].fields[j].jsonType)) +
+						"}",
+				)
+			case Boolean:
 				buf.WriteString(
 					"{" +
 						"\"key\":\"" + ff.lines[i].fields[j].key + "\"," +
