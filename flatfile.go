@@ -128,43 +128,6 @@ func (ff *FlatFile) FormatsAt(i int) []Format {
 	return ff.lines[i].Formats()
 }
 
-// MarshalJSON ...TODO: Make this leaner.
-func (ff *FlatFile) MarshalJSON() ([]byte, error) {
-	buf := bytes.NewBuffer(make([]byte, 0, 256)) // TODO: Find an appropriate estimate for capacity
-	buf.WriteByte('[')
-	for i := 0; i < len(ff.lines); i++ {
-		buf.WriteByte('[')
-		for j := 0; j < len(ff.lines[i].fields); j++ {
-			buf.WriteString(
-				"{" +
-					"\"key\":\"" + ff.lines[i].fields[j].key + "\"," +
-					"\"value\":\"" + ff.lines[i].fields[j].value + "\"," +
-					"\"index\":\"" + strconv.Itoa(ff.lines[i].fields[j].index) + "\"," +
-					"\"length\":\"" + strconv.Itoa(ff.lines[i].fields[j].length) + "\"" +
-					"}",
-			)
-
-			if j+1 < len(ff.lines[i].fields) {
-				buf.WriteByte(',')
-			}
-		}
-
-		buf.WriteByte(']')
-		if i+1 < len(ff.lines) {
-			buf.WriteByte(',')
-		}
-	}
-
-	buf.WriteByte(']')
-
-	b := buf.Bytes()
-	if !json.Valid(b) {
-		return nil, NewMarshalError(b)
-	}
-
-	return b, nil
-}
-
 // Keys returns the keys of the ith line.
 func (ff *FlatFile) Keys(i int) []string {
 	keys := make([]string, 0, len(ff.lines[i].fields))
@@ -200,6 +163,59 @@ func (ff *FlatFile) Line(i int) *Line {
 	return ff.lines[i].Copy()
 }
 
+// MarshalJSON ...TODO: Make this leaner.
+func (ff *FlatFile) MarshalJSON() ([]byte, error) {
+	buf := *bytes.NewBuffer(make([]byte, 0)) // TODO: Find an appropriate estimate for capacity
+	buf.WriteByte('[')
+	for i := 0; i < len(ff.lines); i++ {
+		buf.WriteByte('[')
+		for j := 0; j < len(ff.lines[i].fields); j++ {
+			switch ff.lines[i].fields[j].jsonType {
+			case String:
+				buf.WriteString(
+					"{" +
+						"\"key\":\"" + ff.lines[i].fields[j].key + "\"," +
+						"\"value\":\"" + ff.lines[i].fields[j].value + "\"," +
+						"\"index\":\"" + strconv.Itoa(ff.lines[i].fields[j].index) + "\"," +
+						"\"length\":\"" + strconv.Itoa(ff.lines[i].fields[j].length) + "\"," +
+						"\"jsonType\":" + strconv.Itoa(int(ff.lines[i].fields[j].jsonType)) +
+						"}",
+				)
+			case Number, Boolean:
+				buf.WriteString(
+					"{" +
+						"\"key\":\"" + ff.lines[i].fields[j].key + "\"," +
+						"\"value\":" + ff.lines[i].fields[j].value + "," +
+						"\"index\":\"" + strconv.Itoa(ff.lines[i].fields[j].index) + "\"," +
+						"\"length\":\"" + strconv.Itoa(ff.lines[i].fields[j].length) + "\"," +
+						"\"jsonType\":" + strconv.Itoa(int(ff.lines[i].fields[j].jsonType)) +
+						"}",
+				)
+			default:
+				// TODO: Throw error on unknown json type?
+			}
+
+			if j+1 < len(ff.lines[i].fields) {
+				buf.WriteByte(',')
+			}
+		}
+
+		buf.WriteByte(']')
+		if i+1 < len(ff.lines) {
+			buf.WriteByte(',')
+		}
+	}
+
+	buf.WriteByte(']')
+
+	b := buf.Bytes()
+	if !json.Valid(b) {
+		return nil, NewMarshalError(b)
+	}
+
+	return b, nil
+}
+
 // Note: io.Read interface will not be supported because the caller MAY not know how big the byte slice should be for the flat file to fill. ByteLen could tell them that, but it would be annoying at best and probably dangerous at the worst.
 
 // ReadFile reads a file into a flat file.  The contents will be appended.
@@ -216,7 +232,7 @@ func (ff *FlatFile) ReadFile(filename string) error {
 // ReadFrom implements io.ReaderFrom interface. The number of bytes read reflects the number of bytes written to the flat file, not the actual number of bytes in the file. The white space and line endings (LF or CRLF) are removed, but added back in WriteFile.
 func (ff *FlatFile) ReadFrom(r io.Reader) (int64, error) {
 	var (
-		b   = make([]byte, 1<<7)
+		b   = make([]byte, 256)
 		buf bytes.Buffer
 		n0  = ff.ByteLen()
 		n   int

@@ -42,18 +42,18 @@ func TestFlatFile(t *testing.T) {
 		switch len(line) {
 		case 8: // Single name
 			return []Format{
-				NewFormat("name", 0, 8),
+				NewFormat("name", 0, 8, String),
 			}
 		case 16: // Two names
 			return []Format{
-				NewFormat("first", 0, 8),
-				NewFormat("last", 8, 8),
+				NewFormat("first", 0, 8, String),
+				NewFormat("last", 8, 8, String),
 			}
 		case 24: // Three names
 			return []Format{
-				NewFormat("title", 0, 8),
-				NewFormat("first", 8, 8),
-				NewFormat("last", 16, 8),
+				NewFormat("title", 0, 8, String),
+				NewFormat("first", 8, 8, String),
+				NewFormat("last", 16, 8, String),
 			}
 		default:
 			return nil
@@ -186,18 +186,18 @@ func TestJSON(t *testing.T) {
 		switch len(line) {
 		case 8: // Single name
 			return []Format{
-				NewFormat("name", 0, 8),
+				NewFormat("name", 0, 8, String),
 			}
 		case 16: // Two names
 			return []Format{
-				NewFormat("first", 0, 8),
-				NewFormat("last", 8, 8),
+				NewFormat("first", 0, 8, String),
+				NewFormat("last", 8, 8, String),
 			}
 		case 24: // Three names
 			return []Format{
-				NewFormat("title", 0, 8),
-				NewFormat("first", 8, 8),
-				NewFormat("last", 16, 8),
+				NewFormat("title", 0, 8, String),
+				NewFormat("first", 8, 8, String),
+				NewFormat("last", 16, 8, String),
 			}
 		default:
 			return nil
@@ -237,18 +237,18 @@ func BenchmarkJSON(b *testing.B) {
 		switch len(line) {
 		case 8: // Single name
 			return []Format{
-				NewFormat("name", 0, 8),
+				NewFormat("name", 0, 8, String),
 			}
 		case 16: // Two names
 			return []Format{
-				NewFormat("first", 0, 8),
-				NewFormat("last", 8, 8),
+				NewFormat("first", 0, 8, String),
+				NewFormat("last", 8, 8, String),
 			}
 		case 24: // Three names
 			return []Format{
-				NewFormat("title", 0, 8),
-				NewFormat("first", 8, 8),
-				NewFormat("last", 16, 8),
+				NewFormat("title", 0, 8, String),
+				NewFormat("first", 8, 8, String),
+				NewFormat("last", 16, 8, String),
 			}
 		default:
 			return nil
@@ -260,16 +260,22 @@ func BenchmarkJSON(b *testing.B) {
 		ln = "12345678"
 	)
 
-	benchmarkMarshalFlatFile(b, ff, fmt.Sprintf("%d lines of %q", ff.Len(), ln))
+	if !benchmarkMarshalFlatFile(b, ff, fmt.Sprintf("%d lines of %q", ff.Len(), ln)) {
+		b.Fatal("\nsubbenchmarker failed for an unknown reason\n")
+	}
+
 	for i := 0; i < 10; i++ {
 		if err := ff.AppendStr(ln); err != nil {
 			b.Fatalf("\nunexpected error: %q", err.Error())
 		}
 
-		benchmarkMarshalFlatFile(b, ff, fmt.Sprintf("%d lines of %q", ff.Len(), ln))
+		if !benchmarkMarshalFlatFile(b, ff, fmt.Sprintf("%d lines of %q", ff.Len(), ln)) {
+			b.Fatal("\nsubbenchmarker failed for an unknown reason\n")
+		}
 	}
 }
 
+// benchmarkMarshalFlatFile runs a subbenchmark on flatfile.MarshalJSON. The result of the subbenchmark is returned. true means success, I guess.
 func benchmarkMarshalFlatFile(b *testing.B, ff *FlatFile, name string) bool {
 	f := func(b0 *testing.B) {
 		for i := 0; i < b0.N; i++ {

@@ -3,6 +3,7 @@ package flatfile
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strconv"
 
@@ -21,16 +22,17 @@ type Field struct {
 
 // NewField returns a new field that references a keyed value in a line at an index
 // having a maximum allowed length.
-func NewField(key, value string, index, length int) Field {
+func NewField(key, value string, index, length int, jsonType JSONType) Field {
 	if length < len(value) {
 		value = value[:length]
 	}
 
 	return Field{
 		Format: Format{
-			key:    key,
-			index:  index,
-			length: length,
+			key:      key,
+			index:    index,
+			length:   length,
+			jsonType: jsonType,
 		},
 		value: value,
 	}
@@ -43,14 +45,31 @@ func (fld *Field) Bytes() []byte {
 
 // MarshalJSON ...
 func (fld *Field) MarshalJSON() ([]byte, error) {
-	b := []byte(
-		"{" +
-			"\"key\":\"" + fld.key + "\"," +
-			"\"value\":\"" + fld.value + "\"," +
-			"\"index\":" + strconv.Itoa(fld.index) + "," +
-			"\"length\":" + strconv.Itoa(fld.length) +
-			"}",
-	)
+	var b []byte
+	switch fld.jsonType {
+	case String:
+		b = []byte(
+			"{" +
+				"\"key\":\"" + fld.key + "\"," +
+				"\"value\":\"" + fld.value + "\"," +
+				"\"index\":" + strconv.Itoa(fld.index) + "," +
+				"\"length\":" + strconv.Itoa(fld.length) + "," +
+				"\"jsonType\":" + strconv.Itoa(int(fld.jsonType)) +
+				"}",
+		)
+	case Number, Boolean:
+		b = []byte(
+			"{" +
+				"\"key\":\"" + fld.key + "\"," +
+				"\"value\":" + fld.value + "," +
+				"\"index\":" + strconv.Itoa(fld.index) + "," +
+				"\"length\":" + strconv.Itoa(fld.length) + "," +
+				"\"jsonType\":" + strconv.Itoa(int(fld.jsonType)) +
+				"}",
+		)
+	default:
+		return nil, errors.New("Undefined json type") // TODO: generate an appropriate custom error
+	}
 
 	if !json.Valid(b) {
 		return nil, NewMarshalError(b)
@@ -89,9 +108,21 @@ func (fld *Field) UnmarshalJSON(b []byte) error {
 		}
 	}
 
+	jsonType := gjson.GetBytes(b, "jsonType").Num
+	if float64(int(jsonType)) != jsonType {
+		return &json.UnmarshalTypeError{
+			Value:  "integer",
+			Type:   reflect.TypeOf(jsonType),
+			Offset: 0, // TODO
+			Struct: "Field",
+			Field:  "jsonType",
+		}
+	}
+
 	fld.key = gjson.GetBytes(b, "key").Str
 	fld.value = gjson.GetBytes(b, "value").Str
 	fld.index = int(index)
 	fld.length = int(length)
+	fld.jsonType = JSONType(jsonType)
 	return nil
 }

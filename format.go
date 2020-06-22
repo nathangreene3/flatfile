@@ -21,14 +21,30 @@ type Formatter func(line string) []Format
 type Format struct {
 	key           string
 	index, length int
+	jsonType      JSONType
 }
 
+// JSONType dictates how a field is formatted.
+type JSONType int
+
+const (
+	// String is the default json type.
+	String JSONType = iota
+
+	// Number (integer or float) data type.
+	Number
+
+	// Boolean data type.
+	Boolean
+)
+
 // NewFormat returns a new format.
-func NewFormat(key string, index, length int) Format {
+func NewFormat(key string, index, length int, jsonType JSONType) Format {
 	return Format{
-		key:    key,
-		index:  index,
-		length: length,
+		key:      key,
+		index:    index,
+		length:   length,
+		jsonType: jsonType,
 	}
 }
 
@@ -53,7 +69,8 @@ func (fmt *Format) MarshalJSON() ([]byte, error) {
 		"{" +
 			"\"key\":\"" + fmt.key + "\"," +
 			"\"index\":" + strconv.Itoa(fmt.index) + "," +
-			"\"length\":" + strconv.Itoa(fmt.length) +
+			"\"length\":" + strconv.Itoa(fmt.length) + "," +
+			"\"jsonType\":" + strconv.Itoa(int(fmt.jsonType)) +
 			"}",
 	)
 
