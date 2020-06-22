@@ -176,8 +176,8 @@ func (ff *FlatFile) MarshalJSON() ([]byte, error) {
 					"{" +
 						"\"key\":\"" + ff.lines[i].fields[j].key + "\"," +
 						"\"value\":\"" + ff.lines[i].fields[j].value + "\"," +
-						"\"index\":\"" + strconv.Itoa(ff.lines[i].fields[j].index) + "\"," +
-						"\"length\":\"" + strconv.Itoa(ff.lines[i].fields[j].length) + "\"," +
+						"\"index\":" + strconv.Itoa(ff.lines[i].fields[j].index) + "," +
+						"\"length\":" + strconv.Itoa(ff.lines[i].fields[j].length) + "," +
 						"\"jsonType\":" + strconv.Itoa(int(ff.lines[i].fields[j].jsonType)) +
 						"}",
 				)
@@ -194,8 +194,8 @@ func (ff *FlatFile) MarshalJSON() ([]byte, error) {
 					"{" +
 						"\"key\":\"" + ff.lines[i].fields[j].key + "\"," +
 						"\"value\":" + value + "," +
-						"\"index\":\"" + strconv.Itoa(ff.lines[i].fields[j].index) + "\"," +
-						"\"length\":\"" + strconv.Itoa(ff.lines[i].fields[j].length) + "\"," +
+						"\"index\":" + strconv.Itoa(ff.lines[i].fields[j].index) + "," +
+						"\"length\":" + strconv.Itoa(ff.lines[i].fields[j].length) + "," +
 						"\"jsonType\":" + strconv.Itoa(int(ff.lines[i].fields[j].jsonType)) +
 						"}",
 				)
@@ -204,8 +204,8 @@ func (ff *FlatFile) MarshalJSON() ([]byte, error) {
 					"{" +
 						"\"key\":\"" + ff.lines[i].fields[j].key + "\"," +
 						"\"value\":" + ff.lines[i].fields[j].value + "," +
-						"\"index\":\"" + strconv.Itoa(ff.lines[i].fields[j].index) + "\"," +
-						"\"length\":\"" + strconv.Itoa(ff.lines[i].fields[j].length) + "\"," +
+						"\"index\":" + strconv.Itoa(ff.lines[i].fields[j].index) + "," +
+						"\"length\":" + strconv.Itoa(ff.lines[i].fields[j].length) + "," +
 						"\"jsonType\":" + strconv.Itoa(int(ff.lines[i].fields[j].jsonType)) +
 						"}",
 				)
