@@ -234,6 +234,11 @@ func (ff *FlatFile) MarshalJSON() ([]byte, error) {
 	return b, nil
 }
 
+// Raw returns the ith raw line.
+func (ff *FlatFile) Raw(i int) string {
+	return ff.lines[i].Raw()
+}
+
 // Note: io.Read interface will not be supported because the caller MAY not know how big the byte slice should be for the flat file to fill. ByteLen could tell them that, but it would be annoying at best and probably dangerous at the worst.
 
 // ReadFile reads a file into a flat file.  The contents will be appended.

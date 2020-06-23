@@ -17,6 +17,7 @@ import (
 //
 // * length:     Number of characters the line contains.
 type Line struct {
+	raw        string
 	fields     []Field
 	keyToIndex map[string]int
 	length     int
@@ -25,6 +26,7 @@ type Line struct {
 // NewLine returns a new line given a list of formats.
 func NewLine(line string, fmts ...Format) *Line {
 	ln := Line{
+		raw:        line,
 		fields:     make([]Field, 0, len(fmts)),
 		keyToIndex: make(map[string]int),
 		length:     len(line), // When printed, the original line length will be preserved, but the contents may be lost if the provided formats don't adequately cover the line
@@ -167,6 +169,11 @@ func (ln *Line) Length(key string) (int, error) {
 // LengthAt returns the maximum number of characters in the ith field.
 func (ln *Line) LengthAt(i int) int {
 	return ln.fields[i].length
+}
+
+// Raw returns the raw string the line represents.
+func (ln *Line) Raw() string {
+	return ln.raw
 }
 
 // Set a value in a line given a key.
